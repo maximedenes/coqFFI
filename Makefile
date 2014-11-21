@@ -115,7 +115,8 @@ endif
 #                    #
 ######################
 
-VFILES:=src/ocamlbind.v
+VFILES:=src/reifiable.v\
+  src/ocamlbind.v
 
 -include $(addsuffix .d,$(VFILES))
 .SECONDARY: $(addsuffix .d,$(VFILES))
