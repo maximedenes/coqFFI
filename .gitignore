@@ -1,0 +1,10 @@
+*.bak
+*.cmi
+*.cmo
+*.cmx
+*.cmxs
+*.glob
+*.ml4.d
+*.o
+*.v.d
+*.vo
