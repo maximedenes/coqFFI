@@ -8,3 +8,9 @@
 *.o
 *.v.d
 *.vo
+*.aux
+*.ml.d
+*.a
+*.cma
+*.cmxa
+*.mllib.d
