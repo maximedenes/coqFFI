@@ -16,27 +16,27 @@ End SExpr.
 Module Reifiable.
   Import SExpr.
   
-  Record t (T: Type): Type := New {
+  Class t (T: Type): Type := New {
     Export: T -> SExpr.t;
     Import: SExpr.t -> T}.
   
   (** We expect to get the original value from a reified one. *)
   Definition IsSound (T: Type) (r: t T): Prop :=
-    forall (v: T), Import r (Export r v) = v.
+    forall (v: T), Import (Export v) = v.
   
   (** If we can reify [A] to [B] and reify [B], then we can reify [A]. *)
   Definition Morphism (A B: Type) (r: t B)
     (export: A -> B) (import: B -> A): t A := New
-    (fun a => Export r (export a))
-    (fun s => import (Import r s)).
+    (fun a => Export (export a))
+    (fun s => import (Import s)).
   
   (** [unit] is reifiable. *)
-  Definition Unit: t unit := New
+  Instance Unit: t unit := New
     (fun _ => I)
     (fun _ => tt).
   
   (** [bool] is reifiable. *)
-  Definition Bool: t bool := New
+  Instance Bool: t bool := New
     (fun b =>
       match b with
       | false => I
@@ -49,7 +49,7 @@ Module Reifiable.
       end).
   
   (** [positive] is reifiable. *)
-  Definition BinPos: t positive := New
+  Instance BinPos: t positive := New
     (fix export n :=
       match n with
       | xH => I
@@ -64,60 +64,60 @@ Module Reifiable.
       end).
   
   (** [N] is reifiable. *)
-  Definition BinNat: t N := New
+  Instance BinNat: t N := New
     (fun n =>
       match n with
       | N0 => I
-      | Npos pos => B I (Export BinPos pos)
+      | Npos pos => B I (Export pos)
       end)
     (fun s =>
       match s with
       | I => N0
-      | B _ s' => Npos (Import BinPos s')
+      | B _ s' => Npos (Import s')
       end).
   
   (** [nat] is reifiable. We do a binary encoding. *)
-  Definition Nat: t nat :=
+  Instance Nat: t nat :=
     Morphism BinNat N.of_nat N.to_nat.
   
   (** A product type is reifiable. *)
-  Definition Product (T1 T2: Type) (r1: t T1) (r2: t T2)
+  Instance Product (T1 T2: Type) `{r1: t T1} `{r2: t T2}
     : t (T1 * T2) := New
     (fun v =>
-      B (Export r1 (fst v)) (Export r2 (snd v)))
+      B (Export (fst v)) (Export (snd v)))
     (fun s =>
       match s with
-      | I => (Import r1 I, Import r2 I)
-      | B s1 s2 => (Import r1 s1, Import r2 s2)
+      | I => (Import I, Import I)
+      | B s1 s2 => (Import s1, Import s2)
       end).
   
   (** A sum type is reifiable. *)
-  Definition Sum (T1 T2: Type) (r1: t T1) (r2: t T2)
+  Instance Sum (T1 T2: Type) `{r1: t T1} `{r2: t T2}
     : t (T1 + T2) := New
     (fun v =>
       match v with
-      | inl v' => B I (Export r1 v')
-      | inr v' => B (B I I) (Export r2 v')
+      | inl v' => B I (Export v')
+      | inr v' => B (B I I) (Export v')
       end)
     (fun v =>
       match v with
-      | I => inl (Import r1 I)
-      | B I s' => inl (Import r1 s')
-      | B _ s' => inr (Import r2 s')
+      | I => inl (Import I)
+      | B I s' => inl (Import s')
+      | B _ s' => inr (Import s')
       end).
   
   (** A list is reifiable. *)
-  Definition List (T: Type) (r: t T)
+  Instance List (T: Type) `{r: t T}
     : t (list T) := New
     (fix export v :=
       match v with
       | nil => I
-      | cons x v' => B (Export r x) (export v')
+      | cons x v' => B (Export x) (export v')
       end)
     (fix import s :=
       match s with
       | I => nil
-      | B s1 s2 => cons (Import r s1) (import s2)
+      | B s1 s2 => cons (Import s1) (import s2)
       end).
   
   (** The above definitions are sound. *)
@@ -164,7 +164,7 @@ Module Reifiable.
     Qed.
     
     Lemma ProductIsSound: forall (T1 T2: Type) (r1: t T1) (r2: t T2),
-      IsSound r1 -> IsSound r2 -> IsSound (Product r1 r2).
+      IsSound r1 -> IsSound r2 -> IsSound (Product T1 T2).
       intros T1 T2 r1 r2 H1 H2 v.
       destruct v as [v1 v2].
       simpl.
@@ -172,7 +172,7 @@ Module Reifiable.
     Qed.
     
     Lemma SumIsSound: forall (T1 T2: Type) (r1: t T1) (r2: t T2),
-      IsSound r1 -> IsSound r2 -> IsSound (Sum r1 r2).
+      IsSound r1 -> IsSound r2 -> IsSound (Sum T1 T2).
       intros T1 T2 r1 r2 H1 H2 v.
       destruct v as [v1 | v2]; simpl.
         now rewrite H1.
@@ -181,7 +181,7 @@ Module Reifiable.
     Qed.
     
     Lemma ListIsSound: forall (T: Type) (r: t T),
-      IsSound r -> IsSound (List r).
+      IsSound r -> IsSound (List T).
       intros T r H v.
       induction v; trivial.
       rewrite <- IHv at 2.
