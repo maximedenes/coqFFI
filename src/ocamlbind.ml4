@@ -1,9 +1,8 @@
 open Tacmach
 
-type pickled
+open OcamlbindConstants
+open OcamlbindState
 
-let registered_funs = (Hashtbl.create 17 : (string, pickled -> pickled) Hashtbl.t)
-			
 (** Use site configuration to determine where Cybele
     is installed. *)
 let coqlib =
@@ -30,6 +29,7 @@ let cleanup fname =
 (** compile [c] returns a compiled version of the monadic computation [c]
     in the form of an Ocaml module. *)
 let compile c =
+  print_endline message;
   let rec compile () =
     (** The compilation is the composition of the Coq extraction
         with the compilation from ocaml to the right low-level
@@ -91,6 +91,8 @@ let ocamlbind f a x =
   let dyncode, files = compile a in
   dynload dyncode;
   refine x
+
+let _ = register_fun "id" (fun x -> x)
 
 TACTIC EXTEND ocamlbind
   [ "ocamlbind" string(f) global(a) constr(x) ] -> [ ocamlbind f a x ]

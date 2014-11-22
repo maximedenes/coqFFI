@@ -1,4 +1,17 @@
--R src OCamlBind
+-I src
+-R theories OCamlBind
+
+CMX_TARGETS = "\
+  src/ocamlbindConstants.cmx \
+  src/ocamlbind.cmx"
+
+CMO_TARGETS = $(CMX_TARGETS:.cmx=.cmo)
+
+COQEPLUGIN = "src/ocamlbindPlugin.cma"
+COQEPLUGINOPT = "src/ocamlbindPlugin.cmxs"
+
+src/ocamlbindConstants.ml
 src/ocamlbind.ml4
-src/ocamlbind.v
-src/reifiable.v
+src/ocamlbindPlugin.mllib
+theories/ocamlbind.v
+theories/reifiable.v
