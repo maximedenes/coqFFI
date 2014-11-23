@@ -1,3 +1,6 @@
+open Tactics
+open Tacticals
+open Refiner
 open Tacmach
 
 open OcamlbindConstants
@@ -9,14 +12,10 @@ let coqlib =
   Filename.concat (Filename.concat (Envars.coqlib ()) "user-contrib") "OCamlBind"
 
 (** Use site configuration to use the right ocaml native compilers. *)
-let ocamlopt =
-  (* For Coq 8.5: Envars.ocamlopt () *)
-  "ocamlopt"
+let ocamlopt = Envars.ocamlopt ()
 
 (** Use site configuration to use the right ocaml bytecode compilers. *)
-let ocamlc =
-  (* For Coq 8.5: Envars.ocamlc () *)
-  "ocamlc"
+let ocamlc = Envars.ocamlc ()
 
 (** [command s] runs [s] and logs the exit status. *)
 let command s =
@@ -81,18 +80,40 @@ let dynload f =
   try
     Dynlink.loadfile f
   with Dynlink.Error e ->
-    Util.error ("OCamlBind (during compiled code loading):"
+    Errors.error ("OCamlBind (during compiled code loading):"
                    ^ (Dynlink.error_message e))
 
+let solve_remaining_apply_goals =
+  Proofview.Goal.nf_enter begin fun gl ->
+    try 
+      let env = Proofview.Goal.env gl in
+      let sigma = Proofview.Goal.sigma gl in
+      let concl = Proofview.Goal.concl gl in
+      if Typeclasses.is_class_type sigma concl then
+        let evd', c' = Typeclasses.resolve_one_typeclass env sigma concl in
+    Tacticals.New.tclTHEN
+          (Proofview.Unsafe.tclEVARS evd')
+          (Proofview.V82.tactic (refine_no_check c'))
+    else Proofview.tclUNIT ()
+    with Not_found -> Proofview.tclUNIT ()
+  end
+
 let ocamlbind f a x =
-  let path = Nametab.path_of_global a in
-  let qid = Libnames.qualid_of_path path in
-  let a = Libnames.Qualid (Util.dummy_loc, qid) in
-  let dyncode, files = compile a in
-  dynload dyncode;
-  refine x
+  Proofview.Goal.nf_enter begin fun gl ->
+    let env = Proofview.Goal.env gl in
+    let path = Nametab.path_of_global a in
+    let qid = Libnames.qualid_of_path path in
+    let a = Libnames.Qualid (Loc.dummy_loc, qid) in
+    let dyncode, files = compile a in
+    dynload dyncode;
+    let output = get_output () in
+    let t1 = apply (Lazy.force Reifiable.import) in
+    Tacticals.New.tclTHENLIST [ t1; solve_remaining_apply_goals]
+  end
 
 let _ = register_fun "id" (fun x -> x)
+
+DECLARE PLUGIN "ocamlbindPlugin"
 
 TACTIC EXTEND ocamlbind
   [ "ocamlbind" string(f) global(a) constr(x) ] -> [ ocamlbind f a x ]

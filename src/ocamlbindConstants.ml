@@ -4,12 +4,20 @@ let message = "OCamlBind"
 let lookup  = Coqlib.gen_constant_in_modules message
 
 module SExpr = struct
-  let constant = lookup [["ocamlbind"; "reifiable"; "SExpr"]]
+  let constant = lookup [["OCamlBind"; "reifiable"; "SExpr"]]
   
   let t          = lazy (constant "t")
   
   let i          = lazy (constant "I")
   let b          = lazy (constant "B")
+end
+
+module Reifiable = struct
+  let constant = lookup [["OCamlBind"; "reifiable"; "Reifiable"]]
+  
+  let t          = lazy (constant "t")
+  
+  let import     = lazy (constant "Import")
 end
 
 module Init = struct
