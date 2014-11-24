@@ -6,10 +6,10 @@ open Tacmach
 open OcamlbindConstants
 open OcamlbindState
 
-(** Use site configuration to determine where Cybele
+(** Use site configuration to determine where OCamlBind
     is installed. *)
 let coqlib =
-  Filename.concat (Filename.concat (Envars.coqlib ()) "user-contrib") "OCamlBind"
+    Filename.concat (Filename.concat (Envars.coqlib ()) "user-contrib") "OCamlBind"
 
 (** Use site configuration to use the right ocaml native compilers. *)
 let ocamlopt = Envars.ocamlopt ()
@@ -42,7 +42,7 @@ let compile c =
   and ocaml_via_extraction () =
     (** Name [c]. *)
     (** Extract [c] in a file and all its dependencies. *)
-    let tmp      = Filename.temp_file "cybele" ".ml" in
+    let tmp      = Filename.temp_file "ocamlbind" ".ml" in
     let tmp_intf = Filename.chop_extension tmp ^ ".mli" in
     Extract_env.full_extraction (Some tmp) [c];
     (** We are not interested in the interface file. *)
@@ -52,7 +52,7 @@ let compile c =
   and ocaml_compiler fname =
     (** Use a temporary file for the compiled module. *)
     let compiled_module =
-      let basename = Filename.temp_file "cybele_dyn" "" in
+      let basename = Filename.temp_file "ocamlbind_dyn" "" in
       fun ext -> basename ^ "." ^ ext 
     in
     (** Compile using the right compiler. *)
@@ -69,7 +69,7 @@ let compile c =
     ) else (
       let target = compiled_module "cmo" in
         command (Printf.sprintf 
-                   "%s -rectypes -c -linkall -I %s -o %s %s/cybelePlugin.cma %s"
+                   "%s -rectypes -c -linkall -I %s -o %s %s/ocamlbindPlugin.cma %s"
                    ocamlc coqlib target coqlib fname);
         (target, [target])
     )

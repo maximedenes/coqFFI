@@ -19,6 +19,6 @@ let get_fun id =
 
 let input = ref I
 
-let save_input x = input := x
+let save_input x = input := (Obj.magic x)
 
 let get_input () = !input
