@@ -106,9 +106,11 @@ let ocamlbind f a x =
     let a = Libnames.Qualid (Loc.dummy_loc, qid) in
     let dyncode, files = compile a in
     dynload dyncode;
-    let output = get_output () in
     let t1 = apply (Lazy.force Reifiable.import) in
-    Tacticals.New.tclTHENLIST [ t1; solve_remaining_apply_goals]
+    let a = get_input () in
+    let f = get_fun f in
+    let t2 = apply (mk_sexpr (f a)) in
+    Tacticals.New.tclTHENLIST [ t1; solve_remaining_apply_goals; t2 ]
   end
 
 let _ = register_fun "id" (fun x -> x)

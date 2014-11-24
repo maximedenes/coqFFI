@@ -11,11 +11,14 @@ let rec mk_sexpr : sexpr -> Term.constr = function
 let registered_funs = (Hashtbl.create 17 : (string, sexpr -> sexpr) Hashtbl.t)
 
 let register_fun id f = Hashtbl.add registered_funs id f
-			
-let get_fun id = Hashtbl.find registered_funs id
 
-let output = ref I
+let get_fun id =
+  try Hashtbl.find registered_funs id
+  with Not_found ->
+    (Errors.error ("Function \"" ^ id ^ "\" was not registered."); fun x -> x)
 
-let save_output x = output := x
+let input = ref I
 
-let get_output () = !output
+let save_input x = input := x
+
+let get_input () = !input
