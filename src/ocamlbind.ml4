@@ -98,7 +98,7 @@ let solve_remaining_apply_goals =
     with Not_found -> Proofview.tclUNIT ()
   end
 
-let ocamlbind f a x =
+let ocamlbind f a =
   Proofview.Goal.nf_enter begin fun gl ->
     let env = Proofview.Goal.env gl in
     let path = Nametab.path_of_global a in
@@ -118,5 +118,5 @@ let _ = register_fun "id" (fun x -> x)
 DECLARE PLUGIN "ocamlbindPlugin"
 
 TACTIC EXTEND ocamlbind
-  [ "ocamlbind" string(f) global(a) constr(x) ] -> [ ocamlbind f a x ]
+  [ "ocamlbind" string(f) global(a) ] -> [ ocamlbind f a ]
 END
