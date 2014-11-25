@@ -2,8 +2,12 @@
 Require Import Setoid.
 Require Import NArith.
 Require Import PArith.
+Require Import Ascii String.
+Require Import List.
 
 Set Implicit Arguments.
+
+Import ListNotations.
 
 (** A S-expression, basically a binary tree, can reify almost any data value. *)
 Module SExpr.
@@ -118,6 +122,22 @@ Module Reifiable.
       match s with
       | I => nil
       | B s1 s2 => cons (Import s1) (import s2)
+      end).
+
+  Instance Ascii : t ascii := Morphism (List _)
+    (fun a => let 'Ascii a1 a2 a3 a4 a5 a6 a7 a8 := a in [a1;a2;a3;a4;a5;a6;a7;a8])
+    (fun l => match l with [a1;a2;a3;a4;a5;a6;a7;a8] => Ascii a1 a2 a3 a4 a5 a6 a7 a8 | _ => zero end).
+
+  Instance String : t string := New
+    (fix export v :=
+      match v with
+      | EmptyString => I
+      | String x v' => B (Export x) (export v')
+      end)
+    (fix import s :=
+      match s with
+      | I => EmptyString
+      | B s1 s2 => String (Import s1) (import s2)
       end).
   
   (** The above definitions are sound. *)
