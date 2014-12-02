@@ -1,7 +1,6 @@
 (** Reification is the mechanism used to transmit values from OCaml to Coq. *)
 Require Import Setoid.
-Require Import NArith.
-Require Import PArith.
+Require Import NArith PArith ZArith.
 Require Import Ascii String.
 Require Import List.
 
@@ -79,6 +78,20 @@ Module Reifiable.
       | I => N0
       | B _ s' => Npos (Import s')
       end).
+  
+  Instance Z : t Z := New
+    (fun z =>
+       match z with
+       | Z0 => I
+       | Zpos pos => B I (Export pos)
+       | Zneg pos => B (B I I) (Export pos)
+       end)
+    (fun s =>
+       match s with
+       | I => Z0
+       | B I s' => Zpos (Import s')
+       | B _ s' => Zneg (Import s')
+       end).
   
   (** [nat] is reifiable. We do a binary encoding. *)
   Instance Nat: t nat :=
