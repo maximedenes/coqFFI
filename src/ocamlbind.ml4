@@ -113,10 +113,20 @@ let ocamlbind f a =
     Tacticals.New.tclTHENLIST [ t1; solve_remaining_apply_goals; t2 ]
   end
 
+let ocamlrun f a =
+  let dyncode, files = compile a in
+  dynload dyncode;
+  let a = get_input () in
+  let f = get_fun_unsafe f in let _ = f a in ()
+
 let _ = register_fun "id" (fun x -> x)
 
 DECLARE PLUGIN "ocamlbindPlugin"
 
 TACTIC EXTEND ocamlbind
   [ "ocamlbind" string(f) global(a) ] -> [ ocamlbind f a ]
+END
+
+VERNAC COMMAND EXTEND OCamlrun CLASSIFIED AS QUERY
+  [ "OCamlrun" string(f) global(a) ] -> [ ocamlrun f a ]
 END
