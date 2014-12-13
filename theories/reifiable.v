@@ -152,6 +152,18 @@ Module Reifiable.
       | I => EmptyString
       | B s1 s2 => String (Import s1) (import s2)
       end).
+
+  Instance option (T : Type) `{t T} : t (option T) := New
+    (fix export o :=
+       match o with
+       | None => I
+       | Some x => B I (Export x)
+       end)
+    (fix import s :=
+       match s with
+       | B I v => Some (Import v)
+       | _ => None
+     end).
   
   (** The above definitions are sound. *)
   Module Facts.
