@@ -2,6 +2,9 @@ open Tactics
 open Tacticals
 open Refiner
 open Tacmach
+open Entries
+open Declarations
+open Declare
 
 open OcamlbindConstants
 open OcamlbindState
@@ -25,6 +28,29 @@ let command s =
 let cleanup fname =
   command (Printf.sprintf "rm %s" fname)
 
+(** [define c] introduces a fresh constant name for the term [c]. *)
+let define c =
+  let fresh_name =
+    let base = Names.id_of_string "ocamlbind_main" in
+
+  (** [is_visible_name id] returns [true] if [id] is already
+      used on the Coq side. *)
+    let is_visible_name id =
+      try
+        ignore (Nametab.locate (Libnames.qualid_of_ident id));
+        true
+      with Not_found -> false
+    in
+    (** Safe fresh name generation. *)
+    Namegen.next_ident_away_from base is_visible_name
+  in
+  ignore (
+    declare_constant ~internal:KernelVerbose fresh_name
+      (DefinitionEntry (definition_entry c),
+       Decl_kinds.IsDefinition Decl_kinds.Definition)
+  );
+  fresh_name
+
 (** compile [c] returns a compiled version of the monadic computation [c]
     in the form of an Ocaml module. *)
 let compile c =
@@ -41,10 +67,13 @@ let compile c =
 
   and ocaml_via_extraction () =
     (** Name [c]. *)
+    let constant = define c in
     (** Extract [c] in a file and all its dependencies. *)
     let tmp      = Filename.temp_file "ocamlbind" ".ml" in
     let tmp_intf = Filename.chop_extension tmp ^ ".mli" in
-    Extract_env.full_extraction (Some tmp) [c];
+    Extract_env.full_extraction (Some tmp) [
+      Libnames.Ident (Loc.ghost, constant)
+    ];
     (** We are not interested in the interface file. *)
     cleanup tmp_intf;
     tmp
@@ -101,10 +130,8 @@ let solve_remaining_apply_goals =
 let ocamlbind f a =
   Proofview.Goal.nf_enter begin fun gl ->
     let env = Proofview.Goal.env gl in
-    let path = Nametab.path_of_global a in
-    let qid = Libnames.qualid_of_path path in
-    let a = Libnames.Qualid (Loc.dummy_loc, qid) in
-    let dyncode, files = compile a in
+    let c = Term.mkApp (Lazy.force OCamlbind.save_input,  [|a|]) in
+    let dyncode, files = compile c in
     dynload dyncode;
     let t1 = apply (Lazy.force Reifiable.import) in
     let a = get_input () in
@@ -114,7 +141,18 @@ let ocamlbind f a =
   end
 
 let ocamlrun f a =
-  let dyncode, files = compile a in
+  (* Code taken from vernac_global_check in toplevel/vernacexpr.ml *)
+  let env = Global.env () in
+  let sigma = Evd.from_env env in
+  let (c,ctx) = Constrintern.interp_constr env sigma a in
+  let senv = Global.safe_env() in
+  let cstrs = snd (Evd.evar_universe_context_set ctx) in
+  let senv = Safe_typing.add_constraints cstrs senv in
+  (* TODO
+  let ty = Safe_typing.j_type (Safe_typing.typing senv c) in
+  let c = Term.mkApp (Lazy.force OCamlbind.save_input_unsafe,  [|ty;c|]) in
+  *)
+  let dyncode, files = compile c in
   dynload dyncode;
   let a = get_input () in
   let f = get_fun_unsafe f in let _ = f a in ()
@@ -124,9 +162,9 @@ let _ = register_fun "id" (fun x -> x)
 DECLARE PLUGIN "ocamlbindPlugin"
 
 TACTIC EXTEND ocamlbind
-  [ "ocamlbind" string(f) global(a) ] -> [ ocamlbind f a ]
+  [ "ocamlbind" string(f) constr(a) ] -> [ ocamlbind f a ]
 END
 
 VERNAC COMMAND EXTEND OCamlrun CLASSIFIED AS QUERY
-  [ "OCamlrun" string(f) global(a) ] -> [ ocamlrun f a ]
+  [ "OCamlrun" string(f) constr(a) ] -> [ ocamlrun f a ]
 END

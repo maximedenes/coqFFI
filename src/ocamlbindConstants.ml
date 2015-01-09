@@ -20,6 +20,14 @@ module Reifiable = struct
   let import     = lazy (constant "Import")
 end
 
+module OCamlbind = struct
+  let constant = lookup [["OCamlBind"; "ocamlbind"]]
+
+  let save_input = lazy (constant "save_input")
+
+  let save_input_unsafe = lazy (constant "save_input_unsafe")
+end
+
 module Init = struct
   let init_constant = lookup Coqlib.init_modules
   
