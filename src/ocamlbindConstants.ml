@@ -1,3 +1,4 @@
+open Constr
 (** This module stores the references to Coq's namespace. *)
 
 let message = "OCamlBind"
@@ -57,4 +58,36 @@ module Init = struct
   let rec mk_list typ (mk : 'a -> Term.constr) : 'a list -> Term.constr = function
     | [] -> Term.mkApp (Lazy.force _nil, [| typ |])
     | x :: xs -> Term.mkApp (Lazy.force _cons, [| typ; mk x; mk_list typ mk xs |])
+
 end
+
+(* Interface between Coq and OCaml S-expressions *)
+
+type sexpr =
+  | I
+  | B of sexpr * sexpr
+
+let rec mk_sexpr : sexpr -> Term.constr = function
+  | I -> Lazy.force SExpr.i
+  | B (r1, r2) -> Term.mkApp (Lazy.force SExpr.b, [| mk_sexpr r1; mk_sexpr r2 |])
+
+exception NotAnSExpr
+
+let check_sexpr_ind ind =
+  if not (Constr.equal (mkInd ind) (Lazy.force SExpr.t)) then
+    raise NotAnSExpr
+
+let rec sexpr_of_coq_sexpr t =
+  match Constr.kind t with
+  | Construct ((ind,1),_) ->
+     check_sexpr_ind ind; I
+  | App(f,args) ->
+     begin match Constr.kind f with
+     | Construct ((ind,2),_) ->
+	check_sexpr_ind ind;
+	if Int.equal (Array.length args) 2 then
+          B(sexpr_of_coq_sexpr args.(0),sexpr_of_coq_sexpr args.(1))
+	else raise NotAnSExpr
+     | _ -> raise NotAnSExpr
+     end
+  | _ -> raise NotAnSExpr

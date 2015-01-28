@@ -28,6 +28,17 @@ let command s =
 let cleanup fname =
   command (Printf.sprintf "rm %s" fname)
 
+(** [time l f] runs [f ()] displaying its running time. *)
+let time l f =
+  let start = System.get_time () in
+  let y = f () in
+  let stop = System.get_time () in
+  Pp.msg_info (Pp.str
+                 (Printf.sprintf "Running time of the %s: %f secs\n"
+                    l
+                    (System.time_difference start stop)));
+  y
+
 (** [define c] introduces a fresh constant name for the term [c]. *)
 let define c =
   let fresh_name =
@@ -130,13 +141,20 @@ let solve_remaining_apply_goals =
 let ocamlbind f a =
   Proofview.Goal.nf_enter begin fun gl ->
     let env = Proofview.Goal.env gl in
+    let sigma = Proofview.Goal.sigma gl in
+    (*
     let c = Term.mkApp (Lazy.force OCamlbind.save_input,  [|a|]) in
     let dyncode, files = compile c in
     dynload dyncode;
-    let t1 = apply (Lazy.force Reifiable.import) in
     let a = get_input () in
+    *)
+    let t1 = time "apply import" (fun () -> apply (Lazy.force Reifiable.import)) in
     let f = get_fun f in
-    let t2 = apply (mk_sexpr (f a)) in
+    let a = time "normalize" (fun () -> Redexpr.cbv_vm env sigma a) in
+    let a = time "convert sexpr" (fun () -> sexpr_of_coq_sexpr a) in
+    let r = time "apply function" (fun () -> f a) in
+    let r = time "mk_sexpr" (fun () -> mk_sexpr r) in
+    let t2 = time "apply term" (fun () -> apply r) in
     Tacticals.New.tclTHENLIST [ t1; solve_remaining_apply_goals; t2 ]
   end
 
@@ -155,7 +173,9 @@ let ocamlrun f a =
   let dyncode, files = compile c in
   dynload dyncode;
   let a = get_input () in
-  let f = get_fun_unsafe f in let _ = f a in ()
+  let a = sexpr_of_coq_sexpr c in
+  let f = get_fun f in
+  let _ = f a in ()
 
 let _ = register_fun "id" (fun x -> x)
 

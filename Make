@@ -13,6 +13,7 @@ COQEPLUGINOPT = "src/ocamlbindPlugin.cmxs"
 
 src/ocamlbindConstants.ml
 src/ocamlbindState.ml
+src/ocamlbindState.mli
 src/ocamlbind.ml4
 src/ocamlbindPlugin.mllib
 theories/ocamlbind.v

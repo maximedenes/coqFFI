@@ -1,12 +1,7 @@
+open Errors
+open Names
+open Constr
 open OcamlbindConstants
-
-type sexpr =
-  | I
-  | B of sexpr * sexpr
-
-let rec mk_sexpr : sexpr -> Term.constr = function
-  | I -> Lazy.force SExpr.i
-  | B (r1, r2) -> Term.mkApp (Lazy.force SExpr.b, [| mk_sexpr r1; mk_sexpr r2 |])
 
 let registered_funs = (Hashtbl.create 17 : (string, sexpr -> sexpr) Hashtbl.t)
 
