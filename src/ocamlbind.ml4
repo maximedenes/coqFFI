@@ -173,7 +173,7 @@ let ocamlrun f a =
   let dyncode, files = compile c in
   dynload dyncode;
   let a = get_input () in
-  let a = sexpr_of_coq_sexpr c in
+  (* let a = sexpr_of_coq_sexpr c in *)
   let f = get_fun f in
   let _ = f a in ()
 
