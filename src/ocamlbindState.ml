@@ -16,9 +16,3 @@ let get_fun_unsafe id =
   try Obj.magic (Hashtbl.find registered_funs id)
   with Not_found ->
     (Errors.error ("Function \"" ^ id ^ "\" was not registered."); fun x -> x)
-
-let input = ref I
-
-let save_input x = input := (Obj.magic x)
-
-let get_input () = !input

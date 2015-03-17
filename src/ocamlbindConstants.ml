@@ -3,6 +3,7 @@ open Constr
 
 let message = "OCamlBind"
 let lookup  = Coqlib.gen_constant_in_modules message
+let lookup_ref = Coqlib.gen_reference_in_modules message
 
 module SExpr = struct
   let constant = lookup [["OCamlBind"; "reifiable"; "SExpr"]]
@@ -14,19 +15,19 @@ module SExpr = struct
 end
 
 module Reifiable = struct
-  let constant = lookup [["OCamlBind"; "reifiable"; "Reifiable"]]
+  let path = [["OCamlBind"; "reifiable"; "Reifiable"]]
+  let constant = lookup path
+  let reference = lookup_ref path
   
   let t          = lazy (constant "t")
   
   let import     = lazy (constant "Import")
+  let export     = lazy (constant "Export")
+  let export_ref = lazy (reference "Export")
 end
 
 module OCamlbind = struct
   let constant = lookup [["OCamlBind"; "ocamlbind"]]
-
-  let save_input = lazy (constant "save_input")
-
-  let save_input_unsafe = lazy (constant "save_input_unsafe")
 end
 
 module Init = struct

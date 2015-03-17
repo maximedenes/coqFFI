@@ -5,6 +5,9 @@ open Tacmach
 open Entries
 open Declarations
 open Declare
+open Topconstr
+open Constrexpr
+open Constrintern
 
 open OcamlbindConstants
 open OcamlbindState
@@ -39,90 +42,6 @@ let time l f =
                     (System.time_difference start stop)));
   y
 
-(** [define c] introduces a fresh constant name for the term [c]. *)
-let define c =
-  let fresh_name =
-    let base = Names.id_of_string "ocamlbind_main" in
-
-  (** [is_visible_name id] returns [true] if [id] is already
-      used on the Coq side. *)
-    let is_visible_name id =
-      try
-        ignore (Nametab.locate (Libnames.qualid_of_ident id));
-        true
-      with Not_found -> false
-    in
-    (** Safe fresh name generation. *)
-    Namegen.next_ident_away_from base is_visible_name
-  in
-  ignore (
-    declare_constant ~internal:KernelVerbose fresh_name
-      (DefinitionEntry (definition_entry c),
-       Decl_kinds.IsDefinition Decl_kinds.Definition)
-  );
-  fresh_name
-
-(** compile [c] returns a compiled version of the monadic computation [c]
-    in the form of an Ocaml module. *)
-let compile c =
-  print_endline message;
-  let rec compile () =
-    (** The compilation is the composition of the Coq extraction
-        with the compilation from ocaml to the right low-level
-        plateform (native or bytecode).
-
-        The extraction uses a temporary definition that is automatically
-        cleaned up using the Coq's rollback mechanism.
-    *)
-    ocaml_compiler (States.with_state_protection ocaml_via_extraction ())
-
-  and ocaml_via_extraction () =
-    (** Name [c]. *)
-    let constant = define c in
-    (** Extract [c] in a file and all its dependencies. *)
-    let tmp      = Filename.temp_file "ocamlbind" ".ml" in
-    let tmp_intf = Filename.chop_extension tmp ^ ".mli" in
-    Extract_env.full_extraction (Some tmp) [
-      Libnames.Ident (Loc.ghost, constant)
-    ];
-    (** We are not interested in the interface file. *)
-    cleanup tmp_intf;
-    tmp
-
-  and ocaml_compiler fname =
-    (** Use a temporary file for the compiled module. *)
-    let compiled_module =
-      let basename = Filename.temp_file "ocamlbind_dyn" "" in
-      fun ext -> basename ^ "." ^ ext 
-    in
-    (** Compile using the right compiler. *)
-    if Dynlink.is_native then (
-        let target  = compiled_module "cmx" in
-        let target' = compiled_module "cmxs" in
-        command (Printf.sprintf
-                   "%s -rectypes -c -I %s -o %s %s"
-                   ocamlopt coqlib target fname);
-        command (Printf.sprintf
-                   "%s -shared -o %s %s"
-                   ocamlopt target' target);
-        (target', [target; target'])
-    ) else (
-      let target = compiled_module "cmo" in
-        command (Printf.sprintf 
-                   "%s -rectypes -c -linkall -I %s -o %s %s/ocamlbindPlugin.cma %s"
-                   ocamlc coqlib target coqlib fname);
-        (target, [target])
-    )
-  in
-  compile ()
-
-let dynload f =
-  try
-    Dynlink.loadfile f
-  with Dynlink.Error e ->
-    Errors.error ("OCamlBind (during compiled code loading):"
-                   ^ (Dynlink.error_message e))
-
 let solve_remaining_apply_goals =
   Proofview.Goal.nf_enter begin fun gl ->
     try 
@@ -138,16 +57,14 @@ let solve_remaining_apply_goals =
     with Not_found -> Proofview.tclUNIT ()
   end
 
+(* Convert the constr [a] to an S-expression, apply [f] to it and converts the
+   resulting S-expression back to a constr. *)
+(* TODO: register the type of the function represented by [f] and check *)
+(* that the one of [a] and of the goal are compatible. *)
 let ocamlbind f a =
   Proofview.Goal.nf_enter begin fun gl ->
     let env = Proofview.Goal.env gl in
     let sigma = Proofview.Goal.sigma gl in
-    (*
-    let c = Term.mkApp (Lazy.force OCamlbind.save_input,  [|a|]) in
-    let dyncode, files = compile c in
-    dynload dyncode;
-    let a = get_input () in
-    *)
     let t1 = time "apply import" (fun () -> apply (Lazy.force Reifiable.import)) in
     let f = get_fun f in
     let a = time "normalize" (fun () -> Redexpr.cbv_vm env sigma a) in
@@ -158,24 +75,23 @@ let ocamlbind f a =
     Tacticals.New.tclTHENLIST [ t1; solve_remaining_apply_goals; t2 ]
   end
 
-let ocamlrun f a =
-  (* Code taken from vernac_global_check in toplevel/vernacexpr.ml *)
+(* Convert the constr_expr [c] to an S-expression and apply [f] to it. *)
+(* The result is ignored. *)
+(* TODO: register the type of the function represented by [f] and check *)
+(* that the one of [c] is compatible. *)
+let ocamlrun f c =
+  let export = Lazy.force Reifiable.export_ref in
+  let export = Nametab.path_of_global export in
+  let export = Libnames.Qualid(Loc.ghost,Libnames.qualid_of_path export) in
+  let export = CRef(export, None) in
+  let c = CApp(Loc.ghost, (None,export), [(c,None)]) in
   let env = Global.env () in
-  let sigma = Evd.from_env env in
-  let (c,ctx) = Constrintern.interp_constr env sigma a in
-  let senv = Global.safe_env() in
-  let cstrs = snd (Evd.evar_universe_context_set ctx) in
-  let senv = Safe_typing.add_constraints cstrs senv in
-  (* TODO
-  let ty = Safe_typing.j_type (Safe_typing.typing senv c) in
-  let c = Term.mkApp (Lazy.force OCamlbind.save_input_unsafe,  [|ty;c|]) in
-  *)
-  let dyncode, files = compile c in
-  dynload dyncode;
-  let a = get_input () in
-  (* let a = sexpr_of_coq_sexpr c in *)
+  let evd = Evd.from_env env in
+  let (c,ctx) = interp_constr env evd c in
+  let c = Redexpr.cbv_vm env evd c in
+  let c = sexpr_of_coq_sexpr c in
   let f = get_fun f in
-  let _ = f a in ()
+  let _ = f c in ()
 
 let _ = register_fun "id" (fun x -> x)
 
