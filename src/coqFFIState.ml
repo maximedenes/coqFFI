@@ -1,7 +1,7 @@
 open Errors
 open Names
 open Constr
-open OcamlbindConstants
+open CoqFFIConstants
 
 let registered_funs = (Hashtbl.create 17 : (string, sexpr -> sexpr) Hashtbl.t)
 

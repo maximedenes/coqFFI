@@ -1,3 +1,4 @@
+open Names
 open Tactics
 open Tacticals
 open Refiner
@@ -8,14 +9,16 @@ open Declare
 open Topconstr
 open Constrexpr
 open Constrintern
+open Nameops
+open Nametab
 
-open OcamlbindConstants
-open OcamlbindState
+open CoqFFIConstants
+open CoqFFIState
 
-(** Use site configuration to determine where OCamlBind
+(** Use site configuration to determine where CoqFFI
     is installed. *)
 let coqlib =
-    Filename.concat (Filename.concat (Envars.coqlib ()) "user-contrib") "OCamlBind"
+    Filename.concat (Filename.concat (Envars.coqlib ()) "user-contrib") "CoqFFI"
 
 (** Use site configuration to use the right ocaml native compilers. *)
 let ocamlopt = Envars.ocamlopt ()
@@ -26,7 +29,7 @@ let ocamlc = Envars.ocamlc ()
 (** [command s] runs [s] and logs the exit status. *)
 let command s =
   let ret = Sys.command s in
-  Pp.msg (Pp.str (Printf.sprintf "OCamlBind [%d]: %s\n" ret s))
+  Pp.msg (Pp.str (Printf.sprintf "CoqFFI [%d]: %s\n" ret s))
 
 let cleanup fname =
   command (Printf.sprintf "rm %s" fname)
@@ -57,11 +60,16 @@ let solve_remaining_apply_goals =
     with Not_found -> Proofview.tclUNIT ()
   end
 
+let define name c =
+  ignore (declare_constant ~internal:KernelVerbose name
+      (DefinitionEntry (definition_entry c),
+       Decl_kinds.IsDefinition Decl_kinds.Definition))
+
 (* Convert the constr [a] to an S-expression, apply [f] to it and converts the
    resulting S-expression back to a constr. *)
 (* TODO: register the type of the function represented by [f] and check *)
 (* that the one of [a] and of the goal are compatible. *)
-let ocamlbind f a =
+let bindForeign f a =
   Proofview.Goal.nf_enter begin fun gl ->
     let env = Proofview.Goal.env gl in
     let sigma = Proofview.Goal.sigma gl in
@@ -79,9 +87,9 @@ let ocamlbind f a =
 (* The result is ignored. *)
 (* TODO: register the type of the function represented by [f] and check *)
 (* that the one of [c] is compatible. *)
-let ocamlrun f c =
+let runForeign f c =
   let export = Lazy.force Reifiable.export_ref in
-  let export = Nametab.path_of_global export in
+  let export = path_of_global export in
   let export = Libnames.Qualid(Loc.ghost,Libnames.qualid_of_path export) in
   let export = CRef(export, None) in
   let c = CApp(Loc.ghost, (None,export), [(c,None)]) in
@@ -93,14 +101,29 @@ let ocamlrun f c =
   let f = get_fun f in
   let _ = f c in ()
 
+let reification_gen r =
+  let ind = global_inductive r in
+  let base = basename_of_global (IndRef ind) in
+  let name_export = add_suffix base "_export" in
+  let name_import = add_suffix base "_import" in
+  let env = Global.env () in
+  let evd = Evd.from_env env in
+  (*   let (c,ctx) = interp_constr env evd c in *)
+  define name_export (Constr.mkInd ind);
+  define name_import (Constr.mkInd ind)
+
 let _ = register_fun "id" (fun x -> x)
 
-DECLARE PLUGIN "ocamlbindPlugin"
+DECLARE PLUGIN "coqFFIPlugin"
 
-TACTIC EXTEND ocamlbind
-  [ "ocamlbind" string(f) constr(a) ] -> [ ocamlbind f a ]
+TACTIC EXTEND coqFFI
+  [ "bindForeign" string(f) constr(a) ] -> [ bindForeign f a ]
 END
 
-VERNAC COMMAND EXTEND OCamlrun CLASSIFIED AS QUERY
-  [ "OCamlrun" string(f) constr(a) ] -> [ ocamlrun f a ]
+VERNAC COMMAND EXTEND RunForeign CLASSIFIED AS QUERY
+  [ "RunForeign" string(f) constr(a) ] -> [ runForeign f a ]
+END
+
+VERNAC COMMAND EXTEND Reification CLASSIFIED AS QUERY
+  [ "Reification" "for" global(r) ] -> [ reification_gen r ]
 END

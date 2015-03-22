@@ -1,4 +1,4 @@
-open OcamlbindConstants
+open CoqFFIConstants
 
 val register_fun : string -> (sexpr -> sexpr) -> unit
 

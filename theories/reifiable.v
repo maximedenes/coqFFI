@@ -154,16 +154,29 @@ Module Reifiable.
       end).
 
   Instance option (T : Type) `{t T} : t (option T) := New
-    (fix export o :=
+    (fun o =>
        match o with
        | None => I
        | Some x => B I (Export x)
        end)
-    (fix import s :=
+    (fun s =>
        match s with
        | B I v => Some (Import v)
        | _ => None
      end).
+
+Definition pack3 (x y z : SExpr.t) :=
+  B (B x y) z.
+
+Definition export2 T U `{Reifiable.t T, Reifiable.t U} (x : T) (y : U) :=
+  B (Export x) (Export y).
+
+Definition export3 T U V `{Reifiable.t T, Reifiable.t U, Reifiable.t V} (x : T) (y : U) (z : V) :=
+  pack3 (Export x) (Export y) (Export z).
+
+Definition export4 T U V W `{Reifiable.t T, Reifiable.t U, Reifiable.t V, Reifiable.t W}
+                   (w : T) (x : U) (y : V) (z : W) :=
+  B (pack3 (Export w) (Export x) (Export y)) (Export z).
   
   (** The above definitions are sound. *)
   Module Facts.
@@ -234,4 +247,5 @@ Module Reifiable.
       now rewrite H.
     Qed.
   End Facts.
+
 End Reifiable.

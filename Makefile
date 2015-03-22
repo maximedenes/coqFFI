@@ -52,10 +52,10 @@ vo_to_obj = $(addsuffix .o,\
 
 OCAMLLIBS?=-I "src"
 COQLIBS?=\
-  -R "theories" OCamlBind\
+  -R "theories" CoqFFI\
   -I "src"
 COQDOCLIBS?=\
-  -R "theories" OCamlBind
+  -R "theories" CoqFFI
 
 ##########################
 #                        #
@@ -63,13 +63,13 @@ COQDOCLIBS?=\
 #                        #
 ##########################
 
-COQEPLUGINOPT=src/ocamlbindPlugin.cmxs
-COQEPLUGIN=src/ocamlbindPlugin.cma
+COQEPLUGINOPT=src/coqFFIPlugin.cmxs
+COQEPLUGIN=src/coqFFIPlugin.cma
 CMO_TARGETS=$(CMX_TARGETS:.cmx=.cmo)
 CMX_TARGETS=\
-  src/ocamlbindConstants.cmx \
-  src/ocamlbindState.cmx \
-  src/ocamlbind.cmx
+  src/coqFFIConstants.cmx \
+  src/coqFFIState.cmx \
+  src/coqFFI.cmx
 
 OPT?=
 COQDEP?="$(COQBIN)coqdep" -c
@@ -146,7 +146,7 @@ endif
 ######################
 
 VFILES:=theories/reifiable.v\
-  theories/ocamlbind.v
+  theories/coqFFI.v
 
 -include $(addsuffix .d,$(VFILES))
 .SECONDARY: $(addsuffix .d,$(VFILES))
@@ -162,23 +162,23 @@ OBJFILES=$(call vo_to_obj,$(VOFILES))
 ALLNATIVEFILES=$(OBJFILES:.o=.cmi) $(OBJFILES:.o=.cmo) $(OBJFILES:.o=.cmx) $(OBJFILES:.o=.cmxs)
 NATIVEFILES=$(foreach f, $(ALLNATIVEFILES), $(wildcard $f))
 NATIVEFILES1=$(patsubst theories/%,%,$(filter theories/%,$(NATIVEFILES)))
-ML4FILES:=src/ocamlbind.ml4
+ML4FILES:=src/coqFFI.ml4
 
 -include $(addsuffix .d,$(ML4FILES))
 .SECONDARY: $(addsuffix .d,$(ML4FILES))
 
-MLFILES:=src/ocamlbindState.ml\
-  src/ocamlbindConstants.ml
+MLFILES:=src/coqFFIState.ml\
+  src/coqFFIConstants.ml
 
 -include $(addsuffix .d,$(MLFILES))
 .SECONDARY: $(addsuffix .d,$(MLFILES))
 
-MLLIBFILES:=src/ocamlbindPlugin.mllib
+MLLIBFILES:=src/coqFFIPlugin.mllib
 
 -include $(addsuffix .d,$(MLLIBFILES))
 .SECONDARY: $(addsuffix .d,$(MLLIBFILES))
 
-MLIFILES:=src/ocamlbindState.mli
+MLIFILES:=src/coqFFIState.mli
 
 -include $(addsuffix .d,$(MLIFILES))
 .SECONDARY: $(addsuffix .d,$(MLIFILES))
@@ -252,7 +252,7 @@ beautify: $(VFILES:=.beautified)
 	@echo 'Do not do "make clean" until you are sure that everything went well!'
 	@echo 'If there were a problem, execute "for file in $$(find . -name \*.v.old -print); do mv $${file} $${file%.old}; done" in your shell/'
 
-.PHONY: all opt byte archclean clean install uninstall_me.sh uninstall userinstall depend html validate
+.PHONY: all archclean beautify byte clean gallina gallinahtml html install install-doc install-natdynlink install-toploop opt printenv quick uninstall userinstall validate vio2vo
 
 ####################
 #                  #
@@ -270,9 +270,9 @@ userinstall:
 	+$(MAKE) USERINSTALL=true install
 
 install-natdynlink:
-	install -d "$(DSTROOT)"$(COQLIBINSTALL)/OCamlBind; \
+	install -d "$(DSTROOT)"$(COQLIBINSTALL)/CoqFFI; \
 	for i in $(CMXSFILESINC); do \
-	 install -m 0755 $$i "$(DSTROOT)"$(COQLIBINSTALL)/OCamlBind/`basename $$i`; \
+	 install -m 0755 $$i "$(DSTROOT)"$(COQLIBINSTALL)/CoqFFI/`basename $$i`; \
 	done
 
 install-toploop: $(MLLIBFILES:.mllib=.cmxs)
@@ -281,48 +281,49 @@ install-toploop: $(MLLIBFILES:.mllib=.cmxs)
 
 install:$(if $(HASNATDYNLINK_OR_EMPTY),install-natdynlink)
 	cd "theories" && for i in $(NATIVEFILES1) $(GLOBFILES1) $(VFILES1) $(VOFILES1); do \
-	 install -d "`dirname "$(DSTROOT)"$(COQLIBINSTALL)/OCamlBind/$$i`"; \
-	 install -m 0644 $$i "$(DSTROOT)"$(COQLIBINSTALL)/OCamlBind/$$i; \
+	 install -d "`dirname "$(DSTROOT)"$(COQLIBINSTALL)/CoqFFI/$$i`"; \
+	 install -m 0644 $$i "$(DSTROOT)"$(COQLIBINSTALL)/CoqFFI/$$i; \
 	done
 	for i in $(CMAFILESINC) $(CMIFILESINC) $(CMOFILESINC); do \
-	 install -m 0644 $$i "$(DSTROOT)"$(COQLIBINSTALL)/OCamlBind/`basename $$i`; \
+	 install -m 0644 $$i "$(DSTROOT)"$(COQLIBINSTALL)/CoqFFI/`basename $$i`; \
 	done
 
 install-doc:
-	install -d "$(DSTROOT)"$(COQDOCINSTALL)/OCamlBind/html
+	install -d "$(DSTROOT)"$(COQDOCINSTALL)/CoqFFI/html
 	for i in html/*; do \
-	 install -m 0644 $$i "$(DSTROOT)"$(COQDOCINSTALL)/OCamlBind/$$i;\
+	 install -m 0644 $$i "$(DSTROOT)"$(COQDOCINSTALL)/CoqFFI/$$i;\
 	done
-	install -d "$(DSTROOT)"$(COQDOCINSTALL)/OCamlBind/mlihtml
+	install -d "$(DSTROOT)"$(COQDOCINSTALL)/CoqFFI/mlihtml
 	for i in mlihtml/*; do \
-	 install -m 0644 $$i "$(DSTROOT)"$(COQDOCINSTALL)/OCamlBind/$$i;\
+	 install -m 0644 $$i "$(DSTROOT)"$(COQDOCINSTALL)/CoqFFI/$$i;\
 	done
 
-uninstall_me.sh:
+uninstall_me.sh: Makefile
 	echo '#!/bin/sh' > $@ 
-	printf 'cd "$${DSTROOT}"$(COQLIBINSTALL)/OCamlBind && \\\nfor i in $(CMXSFILESINC); do rm -f "`basename "$$i"`"; done && find . -type d -and -empty -delete\ncd "$${DSTROOT}"$(COQLIBINSTALL) && find "OCamlBind" -maxdepth 0 -and -empty -exec rmdir -p \{\} \;\n' >> "$@"
-	printf 'cd "$${DSTROOT}"$(COQLIBINSTALL)/OCamlBind && rm -f $(NATIVEFILES1) $(GLOBFILES1) $(VFILES1) $(VOFILES1) && \\\nfor i in $(CMAFILESINC) $(CMIFILESINC) $(CMOFILESINC); do rm -f "`basename "$$i"`"; done && find . -type d -and -empty -delete\ncd "$${DSTROOT}"$(COQLIBINSTALL) && find "OCamlBind" -maxdepth 0 -and -empty -exec rmdir -p \{\} \;\n' >> "$@"
-	printf 'cd "$${DSTROOT}"$(COQDOCINSTALL)/OCamlBind \\\n' >> "$@"
+	printf 'cd "$${DSTROOT}"$(COQLIBINSTALL)/CoqFFI && \\\nfor i in $(CMXSFILESINC); do rm -f "`basename "$$i"`"; done && find . -type d -and -empty -delete\ncd "$${DSTROOT}"$(COQLIBINSTALL) && find "CoqFFI" -maxdepth 0 -and -empty -exec rmdir -p \{\} \;\n' >> "$@"
+	printf 'cd "$${DSTROOT}"$(COQLIBINSTALL)/CoqFFI && rm -f $(NATIVEFILES1) $(GLOBFILES1) $(VFILES1) $(VOFILES1) && \\\nfor i in $(CMAFILESINC) $(CMIFILESINC) $(CMOFILESINC); do rm -f "`basename "$$i"`"; done && find . -type d -and -empty -delete\ncd "$${DSTROOT}"$(COQLIBINSTALL) && find "CoqFFI" -maxdepth 0 -and -empty -exec rmdir -p \{\} \;\n' >> "$@"
+	printf 'cd "$${DSTROOT}"$(COQDOCINSTALL)/CoqFFI \\\n' >> "$@"
 	printf '&& rm -f $(shell find "html" -maxdepth 1 -and -type f -print)\n' >> "$@"
-	printf 'cd "$${DSTROOT}"$(COQDOCINSTALL) && find OCamlBind/html -maxdepth 0 -and -empty -exec rmdir -p \{\} \;\n' >> "$@"
-	printf 'cd "$${DSTROOT}"$(COQDOCINSTALL)/OCamlBind \\\n' >> "$@"
+	printf 'cd "$${DSTROOT}"$(COQDOCINSTALL) && find CoqFFI/html -maxdepth 0 -and -empty -exec rmdir -p \{\} \;\n' >> "$@"
+	printf 'cd "$${DSTROOT}"$(COQDOCINSTALL)/CoqFFI \\\n' >> "$@"
 	printf '&& rm -f $(shell find "mlihtml" -maxdepth 1 -and -type f -print)\n' >> "$@"
-	printf 'cd "$${DSTROOT}"$(COQDOCINSTALL) && find OCamlBind/mlihtml -maxdepth 0 -and -empty -exec rmdir -p \{\} \;\n' >> "$@"
+	printf 'cd "$${DSTROOT}"$(COQDOCINSTALL) && find CoqFFI/mlihtml -maxdepth 0 -and -empty -exec rmdir -p \{\} \;\n' >> "$@"
 	chmod +x $@
 
 uninstall: uninstall_me.sh
 	sh $<
 
-clean:
+clean::
 	rm -f $(ALLCMOFILES) $(CMIFILES) $(CMAFILES)
 	rm -f $(ALLCMOFILES:.cmo=.cmx) $(CMXAFILES) $(CMXSFILES) $(ALLCMOFILES:.cmo=.o) $(CMXAFILES:.cmxa=.a)
 	rm -f $(addsuffix .d,$(MLFILES) $(MLIFILES) $(ML4FILES) $(MLLIBFILES) $(MLPACKFILES))
 	rm -f $(OBJFILES) $(OBJFILES:.o=.native) $(NATIVEFILES)
+	find . -name .coq-native -type d -empty -delete
 	rm -f $(VOFILES) $(VOFILES:.vo=.vio) $(GFILES) $(VFILES:.v=.v.d) $(VFILES:=.beautified) $(VFILES:=.old)
 	rm -f all.ps all-gal.ps all.pdf all-gal.pdf all.glob $(VFILES:.v=.glob) $(VFILES:.v=.tex) $(VFILES:.v=.g.tex) all-mli.tex
 	- rm -rf html mlihtml uninstall_me.sh
 
-archclean:
+archclean::
 	rm -f *.cmx *.o
 
 printenv:
@@ -358,7 +359,7 @@ $(filter-out $(addsuffix .cmx,$(foreach lib,$(MLPACKFILES:.mlpack=_MLPACK_DEPEND
 	$(CAMLOPTC) $(ZDEBUG) $(ZFLAGS) $(PP) -impl $<
 
 $(addsuffix .d,$(ML4FILES)): %.ml4.d: %.ml4
-	$(COQDEP) $(OCAMLLIBS) "$<" > "$@" || ( RV=$$?; rm -f "$@"; exit $${RV} )
+	$(OCAMLDEP) -slash $(OCAMLLIBS) $(PP) -impl "$<" > "$@" || ( RV=$$?; rm -f "$@"; exit $${RV} )
 
 $(MLFILES:.ml=.cmo): %.cmo: %.ml
 	$(CAMLC) $(ZDEBUG) $(ZFLAGS) $<

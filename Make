@@ -1,20 +1,20 @@
 -I src
--R theories OCamlBind
+-R theories CoqFFI
 
 CMX_TARGETS = "\
-  src/ocamlbindConstants.cmx \
-  src/ocamlbindState.cmx \
-  src/ocamlbind.cmx"
+  src/coqFFIConstants.cmx \
+  src/coqFFIState.cmx \
+  src/coqFFI.cmx"
 
 CMO_TARGETS = $(CMX_TARGETS:.cmx=.cmo)
 
-COQEPLUGIN = "src/ocamlbindPlugin.cma"
-COQEPLUGINOPT = "src/ocamlbindPlugin.cmxs"
+COQEPLUGIN = "src/coqFFIPlugin.cma"
+COQEPLUGINOPT = "src/coqFFIPlugin.cmxs"
 
-src/ocamlbindConstants.ml
-src/ocamlbindState.ml
-src/ocamlbindState.mli
-src/ocamlbind.ml4
-src/ocamlbindPlugin.mllib
-theories/ocamlbind.v
+src/coqFFIConstants.ml
+src/coqFFIState.ml
+src/coqFFIState.mli
+src/coqFFI.ml4
+src/coqFFIPlugin.mllib
+theories/coqFFI.v
 theories/reifiable.v

@@ -1,7 +1,7 @@
 open Constr
 (** This module stores the references to Coq's namespace. *)
 
-let message = "OCamlBind"
+let message = "CoqFFI"
 let lookup  = Coqlib.gen_constant_in_modules message
 let lookup_ref = Coqlib.gen_reference_in_modules message
 
@@ -26,8 +26,8 @@ module Reifiable = struct
   let export_ref = lazy (reference "Export")
 end
 
-module OCamlbind = struct
-  let constant = lookup [["OCamlBind"; "ocamlbind"]]
+module CoqFFI = struct
+  let constant = lookup [["CoqFFI"; "coqFFI"]]
 end
 
 module Init = struct
