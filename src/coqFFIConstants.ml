@@ -6,7 +6,7 @@ let lookup  = Coqlib.gen_constant_in_modules message
 let lookup_ref = Coqlib.gen_reference_in_modules message
 
 module SExpr = struct
-  let constant = lookup [["OCamlBind"; "reifiable"; "SExpr"]]
+  let constant = lookup [["CoqFFI"; "reifiable"; "SExpr"]]
   
   let t          = lazy (constant "t")
   
@@ -15,7 +15,7 @@ module SExpr = struct
 end
 
 module Reifiable = struct
-  let path = [["OCamlBind"; "reifiable"; "Reifiable"]]
+  let path = [["CoqFFI"; "reifiable"; "Reifiable"]]
   let constant = lookup path
   let reference = lookup_ref path
   
