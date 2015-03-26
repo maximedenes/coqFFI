@@ -166,7 +166,8 @@ ML4FILES:=src/coqFFI.ml4
 -include $(addsuffix .d,$(ML4FILES))
 .SECONDARY: $(addsuffix .d,$(ML4FILES))
 
-MLFILES:=src/coqFFIState.ml\
+MLFILES:=src/coqFFIReification.ml\
+  src/coqFFIState.ml\
   src/coqFFIConstants.ml
 
 -include $(addsuffix .d,$(MLFILES))
@@ -177,7 +178,8 @@ MLLIBFILES:=src/coqFFIPlugin.mllib
 -include $(addsuffix .d,$(MLLIBFILES))
 .SECONDARY: $(addsuffix .d,$(MLLIBFILES))
 
-MLIFILES:=src/coqFFIState.mli\
+MLIFILES:=src/coqFFIReification.mli\
+  src/coqFFIState.mli\
   src/coqFFIConstants.mli
 
 -include $(addsuffix .d,$(MLIFILES))
