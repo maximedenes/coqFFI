@@ -24,6 +24,8 @@ module Reifiable = struct
   let import     = lazy (constant "Import")
   let export     = lazy (constant "Export")
   let export_ref = lazy (reference "Export")
+
+  let new_reifiable = lazy (constant "New")
 end
 
 module CoqFFI = struct
@@ -31,22 +33,22 @@ module CoqFFI = struct
 end
 
 module Init = struct
-  let init_constant = lookup Coqlib.init_modules
+  let constant = lookup Coqlib.init_modules
   
-  let bool       = lazy (init_constant "bool")
-  let nat        = lazy (init_constant "nat")
-  let option     = lazy (init_constant "option")
+  let bool       = lazy (constant "bool")
+  let nat        = lazy (constant "nat")
+  let option     = lazy (constant "option")
   
-  let eq_refl    = lazy (init_constant "eq_refl")
+  let eq_refl    = lazy (constant "eq_refl")
   
-  let _O         = lazy (init_constant "O")
-  let _S         = lazy (init_constant "S")
+  let _O         = lazy (constant "O")
+  let _S         = lazy (constant "S")
   
-  let none       = lazy (init_constant "None")
-  let some       = lazy (init_constant "Some")
+  let none       = lazy (constant "None")
+  let some       = lazy (constant "Some")
   
-  let _nil       = lazy (init_constant "nil")
-  let _cons      = lazy (init_constant "cons")
+  let _nil       = lazy (constant "nil")
+  let _cons      = lazy (constant "cons")
   
   let rec mk_nat = function
     | 0 -> Lazy.force _O
@@ -60,6 +62,15 @@ module Init = struct
     | [] -> Term.mkApp (Lazy.force _nil, [| typ |])
     | x :: xs -> Term.mkApp (Lazy.force _cons, [| typ; mk x; mk_list typ mk xs |])
 
+end
+
+module Positive = struct
+  let constant = lookup [["Coq"; "Numbers"; "BinNums"]]
+
+  let t        = lazy (constant "positive")
+  let xH       = lazy (constant "xH")
+  let xI       = lazy (constant "xI")
+  let xO       = lazy (constant "xO")
 end
 
 (* Interface between Coq and OCaml S-expressions *)

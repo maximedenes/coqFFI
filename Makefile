@@ -145,7 +145,8 @@ endif
 #                    #
 ######################
 
-VFILES:=theories/reifiable.v\
+VFILES:=theories/reify.v\
+  theories/reifiable.v\
   theories/coqFFI.v
 
 -include $(addsuffix .d,$(VFILES))
@@ -178,7 +179,8 @@ MLLIBFILES:=src/coqFFIPlugin.mllib
 -include $(addsuffix .d,$(MLLIBFILES))
 .SECONDARY: $(addsuffix .d,$(MLLIBFILES))
 
-MLIFILES:=src/coqFFIState.mli
+MLIFILES:=src/coqFFIState.mli\
+  src/coqFFIConstants.mli
 
 -include $(addsuffix .d,$(MLIFILES))
 .SECONDARY: $(addsuffix .d,$(MLIFILES))

@@ -12,9 +12,11 @@ COQEPLUGIN = "src/coqFFIPlugin.cma"
 COQEPLUGINOPT = "src/coqFFIPlugin.cmxs"
 
 src/coqFFIConstants.ml
+src/coqFFIConstants.mli
 src/coqFFIState.ml
 src/coqFFIState.mli
 src/coqFFI.ml4
 src/coqFFIPlugin.mllib
 theories/coqFFI.v
 theories/reifiable.v
+theories/reify.v
