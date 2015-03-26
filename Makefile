@@ -143,7 +143,8 @@ endif
 #                    #
 ######################
 
-VFILES:=theories/reifiable.v\
+VFILES:=theories/reify.v\
+  theories/reifiable.v\
   theories/coqFFI.v
 
 -include $(addsuffix .d,$(VFILES))

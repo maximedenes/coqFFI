@@ -19,3 +19,4 @@ src/coqFFI.ml4
 src/coqFFIPlugin.mllib
 theories/coqFFI.v
 theories/reifiable.v
+theories/reify.v
