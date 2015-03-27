@@ -64,8 +64,12 @@ let solve_remaining_apply_goals =
   end
 
 let define name c =
+  let env = Global.env () in
+  let evd = Evd.from_env env in
+  let (evd,_) = Typing.e_type_of env evd c in
+  let uctxt = Evd.evar_context_universe_context (Evd.evar_universe_context evd) in
   declare_constant ~internal:KernelVerbose name
-      (DefinitionEntry (definition_entry c),
+      (DefinitionEntry (definition_entry ~univs:uctxt c),
        Decl_kinds.IsDefinition Decl_kinds.Definition)
 
 (* Convert the constr [a] to an S-expression, apply [f] to it and converts the
@@ -104,23 +108,12 @@ let runForeign f c =
   let f = get_fun f in
   let _ = f c in ()
 
-(*
-let zero = SExpr.i
-let one =
-  lazy (Constr.mkApp(Lazy.force SExpr.b, [|Lazy.force zero; Lazy.force zero|]))
-
-(** Encoding of positive integers *)
-let rec export_tag i =
-  if i > 0 then
-    let digit = if i mod 2 = 0 then Lazy.force zero else Lazy.force one in
-    Constr.mkApp(digit,[|export_tag (i shr 1)|])
-  else Lazy.force zero
- *)
-
 let reification_gen r =
   let env = Global.env () in
   let evd = Evd.from_env env in
   let ind = global_inductive r in
+  let (mib,_) = lookup_mind_specif env ind in
+  let nparams = mib.mind_nparams_rec in
   let pind, ctxt = Universes.fresh_inductive_instance env ind in
   Global.push_context_set ctxt;
   let env = Global.env () in
@@ -129,30 +122,27 @@ let reification_gen r =
   let name_export = add_suffix base "_export" in
   let name_import = add_suffix base "_import" in
   let name_reify = add_suffix base "_reify" in
-  (*   let (c,ctx) = interp_constr env evd c in *)
   let export_term = export_mind env pind in
   Pp.ppnl (Termops.print_constr export_term);
   let export = define name_export export_term in
   Pp.msg_info (Pp.str (Printf.sprintf "Defined export function for %s\n"
                          (MutInd.to_string (fst ind))));
-  let import = define name_import (import_inductive env ind) in
+  let import_term = import_mind env ind in
+  Pp.ppnl (Termops.print_constr import_term);
+  let import = define name_import import_term in
   Pp.msg_info (Pp.str (Printf.sprintf "Defined import function for %s\n"
                          (MutInd.to_string (fst ind))));
   let env = Global.env () in
   let evd = Evd.from_env env in
-  let export = Constr.mkConst export in
-  let import = Constr.mkConst import in
+  let export = apply_reifiables nparams (Constr.mkConst export) in
+  let import = apply_reifiables nparams (Constr.mkConst import) in
   let new_reifiable = Lazy.force Reifiable.new_reifiable in
-  (*
-  let (evd,new_reifiable) = Evd.fresh_global env evd (Lazy.force Reifiable.new_reifiable) in
-   *)
-  let ty = Constr.mkInd ind in
+  let ty = apply_params nparams (Constr.mkInd ind) in
   let reify = Constr.mkApp(new_reifiable, [|ty;export;import|]) in
-  let (evd,_) = Typing.e_type_of env evd reify in
-  let uctxt = Evd.evar_universe_context evd in
-  let csts = Evd.evar_universe_context_constraints uctxt in
-  Global.add_constraints csts;
-  ignore (define name_reify (reify));
+  let subst,lams = gen_params None mib in
+  let reify = Termops.it_mkLambda reify lams in
+  Pp.ppnl (Termops.print_constr reify);
+  ignore (define name_reify reify);
   Pp.msg_info (Pp.str (Printf.sprintf "Defined reification function for %s\n"
                          (MutInd.to_string (fst ind))))
 
