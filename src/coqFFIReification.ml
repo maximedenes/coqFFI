@@ -26,9 +26,13 @@ let find_reifiable_instance env ty =
   (* let ctxt = Environ.empty_named_context_val in
   let (evd,ev) = Evarutil.new_pure_evar ctxt evd ty in *)
   let tc = Constr.mkApp(Lazy.force Reifiable.t, [|ty|]) in
-  let (evd,constr) = Typeclasses.resolve_one_typeclass env evd tc in
-  constr
-(* Errors.error "Could not find an instance of reifiable" *)
+  try
+    let (evd,constr) = Typeclasses.resolve_one_typeclass env evd tc in
+    constr
+  with Not_found ->
+    let pty = Termops.print_constr ty in
+    Errors.errorlabstrm "find_reifiable_instance"
+			(Pp.app (Pp.str "Could not find an instance of reifiable for type: ") pty)
 
 let rec export_tag i =
   if i > 1 then
@@ -61,7 +65,9 @@ let export_arg env nargs mind ninds nparams substparams ty i =
      (* So we found parameter number (nparams - k + i - 1) *)
      let t = Vars.lift (nargs+nparams+ninds+1) substparams.(nparams - k + i - 1) in
      Constr.mkApp(t, Array.of_list (params @ [arg]))
-  | _ -> Pp.ppnl (Termops.print_constr t); assert false
+  | _ ->
+     let inst = find_reifiable_instance env ty in
+     Constr.mkApp(Lazy.force Reifiable.export, [|ty;inst;arg|])
 
 let rel_of_param nparams n =
   Constr.mkRel (2 * (nparams - n))
