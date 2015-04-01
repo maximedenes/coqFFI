@@ -34,6 +34,8 @@ Existing Instance nat_reify.
 Reification for list.
 Existing Instance list_reify.
 
+Print prod.
+
 Reification for prod.
 Existing Instance prod_reify.
 

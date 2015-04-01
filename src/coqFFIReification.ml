@@ -21,18 +21,14 @@ open CoqFFIState
 
 let one = lazy (Constr.mkApp(Lazy.force SExpr.i,[|Lazy.force Positive.xH|]))
 
-let find_reifiable_instance env ty =
-  let evd = Evd.from_env env in
+let find_reifiable_instance env evd ty =
   (* let ctxt = Environ.empty_named_context_val in
   let (evd,ev) = Evarutil.new_pure_evar ctxt evd ty in *)
   let tc = Constr.mkApp(Lazy.force Reifiable.t, [|ty|]) in
-  try
-    let (evd,constr) = Typeclasses.resolve_one_typeclass env evd tc in
-    constr
-  with Not_found ->
-    let pty = Termops.print_constr ty in
-    Errors.errorlabstrm "find_reifiable_instance"
-			(Pp.app (Pp.str "Could not find an instance of reifiable for type: ") pty)
+  let (evd,evar) = Evarutil.new_evar env evd (* ~principal:true *) tc in
+  (*  let tc = Termops.it_mkProd tc prods in *)
+  let evd = Typeclasses.resolve_typeclasses env evd in
+  Evarutil.nf_evar evd (Evd.existential_value evd (destEvar evar))
 
 let rec export_tag i =
   if i > 1 then
@@ -48,6 +44,10 @@ let export_list l =
   List.fold_right (fun e t ->
     Constr.mkApp(Lazy.force SExpr.b, [|e;t|])) l (Lazy.force one)
 
+(** Build the S-Expr exporting ith argument of constructor of mind of type
+Ck : forall params, T1, ... Tn in the following [env] :
+params, T1, ... T(i-1) |- Ti (= [ty])
+*)
 let export_arg env nargs mind ninds nparams substparams ty i =
   let evd = Evd.from_env env in
   let (t, params) = decompose_app (Reduction.whd_betadeltaiota env ty) in
@@ -58,7 +58,35 @@ let export_arg env nargs mind ninds nparams substparams ty i =
       Constr.mkApp(Constr.mkRel (nargs+nparams+1+ninds-k), [|arg|])
     else
       (Printf.printf "mind=%s mind'=%s\n" (MutInd.to_string mind) (MutInd.to_string mind');
-       let inst = find_reifiable_instance env ty in
+       let rels = Termops.free_rels ty in
+       (* We rely here on the order underlying Int.Set.t *)
+       let rels = Int.Set.elements rels in
+       let nrels = List.length rels in
+(*       let (evd,ty) =
+	 List.fold_left (fun (evd,subst) r -> 
+			 let (_,_,t) = Environ.lookup_rel r env in
+			 let (evd,c) = Evarutil.new_evar (Global.env ()) evd t in
+			 (evd, Vars.substnl [c] (r-1) ty)) (evd,ty) rels
+       in*)
+       (*
+       let ty = Vars.substl (List.rev (Termops.rel_list 0 nrels)) ty in
+	*)
+(*       let ty =
+	 List.fold_left (fun ty r -> 
+			 let (_,_,t) = Environ.lookup_rel r env in
+			 Constr.mkProd(Anonymous,t,ty)) ty rels
+       in *)
+(*
+       let prods =
+	 List.map (fun r -> 
+		   let (_,_,ty) = Environ.lookup_rel r env in
+		   (Anonymous,ty)) rels
+       in
+ *)
+       (*       let ty = Vars.substl (List.rev subst) ty in *)
+       let inst = find_reifiable_instance env evd ty in
+       let ty = Vars.lift (nargs+1-i) ty in
+       let inst = Vars.lift (nargs+1-i) inst in
        Constr.mkApp(Lazy.force Reifiable.export, [|ty;inst;arg|]))
   | Rel k ->
      (* The current context is forall params, forall arg0 ... forall arg(i-1) |- *)
@@ -66,7 +94,9 @@ let export_arg env nargs mind ninds nparams substparams ty i =
      let t = Vars.lift (nargs+nparams+ninds+1) substparams.(nparams - k + i - 1) in
      Constr.mkApp(t, Array.of_list (params @ [arg]))
   | _ ->
-     let inst = find_reifiable_instance env ty in
+     let inst = find_reifiable_instance env evd ty in
+     let ty = Vars.lift (nargs+1-i) ty in
+     let inst = Vars.lift (nargs+1-i) inst in
      Constr.mkApp(Lazy.force Reifiable.export, [|ty;inst;arg|])
 
 let rel_of_param nparams n =
@@ -78,16 +108,19 @@ let rel_of_reifiable nparams n =
 (** Return B tag [export_arg arg1] ... [export_arg arg2] *)
 let export_constructor env mind ninds nparams substparams i ty =
   let ctxt,t = decompose_prod_assum ty in
-  let (_,ctxt) = List.chop nparams (List.rev ctxt) in
-  let ctxt = List.rev ctxt in
+  (* [smash_rel_context] expands let-ins which might be costly in some cases *)
+  let ctxt = Termops.smash_rel_context ctxt in
+  let (ctxt,params) = List.chop (List.length ctxt - nparams) ctxt in
+  let env = Environ.push_rel_context params env in
   let nargs = Context.rel_context_nhyps ctxt in
-  let (_,args,_) = Context.fold_rel_context (fun (_,odecl,ty) (subs,args,i) ->
+  let (env,args,_) = Context.fold_rel_context (fun (_,odecl,ty as decl) (env,args,i) ->
     match odecl with
     | None ->
        let arg = export_arg env nargs mind ninds nparams substparams ty i in
-       (Constr.mkRel i :: subs, arg :: args, i+1)
-    | Some b -> (Vars.substl subs b :: subs, args, i))
-    ctxt ~init:([],[],1)
+       let env = Environ.push_rel decl env in
+       (env, arg :: args, i+1)
+    | Some _ -> assert false)
+    ctxt ~init:(env,[],1)
   in
   let tag = Constr.mkApp(Lazy.force SExpr.i, [|export_tag (i+1)|]) in
   let br = Constr.mkApp(Lazy.force SExpr.b, [|tag; export_list (List.rev args)|]) in
