@@ -27,14 +27,7 @@ let find_reifiable_instance env evd ty =
   let evd = Typeclasses.resolve_typeclasses env evd in
   Evarutil.nf_evar evd (Evd.existential_value evd (destEvar evar))
 
-let rec export_tag i =
-  if i > 1 then
-    let digit =
-      if i land 1 = 0 then Lazy.force Positive.xO
-      else Lazy.force Positive.xI
-    in
-    Constr.mkApp(digit, [|export_tag (i lsr 1)|])
-  else Lazy.force Positive.xH
+let export_tag i = mk_positive i
 
 (** Builds an S-Expr from a list of terms representing S-Exprs *)
 let export_list l =

@@ -76,25 +76,58 @@ end
 (* Interface between Coq and OCaml S-expressions *)
 
 type sexpr =
-  | I
+  | I of int
   | B of sexpr * sexpr
 
+let rec mk_positive i =
+  if i > 1 then
+    let digit =
+      if i land 1 = 0 then Lazy.force Positive.xO
+      else Lazy.force Positive.xI
+    in
+    Constr.mkApp(digit, [|mk_positive (i lsr 1)|])
+  else Lazy.force Positive.xH
+
 let rec mk_sexpr : sexpr -> Term.constr = function
-  | I -> Lazy.force SExpr.i
-  | B (r1, r2) -> Term.mkApp (Lazy.force SExpr.b, [| mk_sexpr r1; mk_sexpr r2 |])
+  | I i -> Constr.mkApp(Lazy.force SExpr.i, [|mk_positive i|])
+  | B (r1, r2) -> Constr.mkApp(Lazy.force SExpr.b, [|mk_sexpr r1; mk_sexpr r2|])
 
 exception NotAnSExpr
+
+let check_positive ind =
+  if not (Constr.equal (mkInd ind) (Lazy.force Positive.t)) then
+    raise NotAnSExpr
 
 let check_sexpr_ind ind =
   if not (Constr.equal (mkInd ind) (Lazy.force SExpr.t)) then
     raise NotAnSExpr
 
-let rec sexpr_of_coq_sexpr t =
+let rec int_of_positive acc t =
   match Constr.kind t with
-  | Construct ((ind,1),_) ->
-     check_sexpr_ind ind; I
+  | Construct ((ind,3),_) -> (* xH *)
+     check_positive ind; acc
   | App(f,args) ->
      begin match Constr.kind f with
+     | Construct ((ind,i),_) -> (* xI (i = 1) or xO (i = 2) *)
+	check_positive ind;
+	if Int.equal (Array.length args) 1 && 1 <= i && i <= 2 then
+	  int_of_positive (2 * acc + (i mod 2)) args.(0)
+	else raise NotAnSExpr
+     | _ -> raise NotAnSExpr
+     end
+  | _ -> raise NotAnSExpr
+
+let int_of_positive t = int_of_positive 1 t
+
+let rec sexpr_of_coq_sexpr t =
+  match Constr.kind t with
+  | App(f,args) ->
+     begin match Constr.kind f with
+     | Construct ((ind,1),_) ->
+	check_positive ind;
+	if Int.equal (Array.length args) 1 then
+          I(int_of_positive args.(0))
+	else raise NotAnSExpr
      | Construct ((ind,2),_) ->
 	check_sexpr_ind ind;
 	if Int.equal (Array.length args) 2 then
