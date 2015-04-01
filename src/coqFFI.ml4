@@ -134,10 +134,12 @@ let reification_gen r =
                          (MutInd.to_string (fst ind))));
   let env = Global.env () in
   let evd = Evd.from_env env in
-  let export = apply_reifiables nparams (Constr.mkConst export) in
-  let import = apply_reifiables nparams (Constr.mkConst import) in
+  let subst,lams = gen_params mib in
+  let env = Termops.push_rels_assum lams env in
+  let args = Termops.rel_vect 0 (List.length lams) in
+  let export = Constr.mkApp(Constr.mkConst export, args) in
+  let import = Constr.mkApp(Constr.mkConst import, args) in
   let new_reifiable = Lazy.force Reifiable.new_reifiable in
-  let subst,lams = gen_params None mib in
   let ty = apply_params subst (Constr.mkInd ind) in
   let reify = Constr.mkApp(new_reifiable, [|ty;export;import|]) in
   let reify = Termops.it_mkLambda reify lams in

@@ -112,20 +112,13 @@ let export_inductive env ((mind,i as ind),u as pind) ninds nparams substparams o
   let case = Constr.mkCase(ci,p,c,ac) in
   Constr.mkLambda(Anonymous, ty, case)
 
-(* TODO: remove *)
-let apply_reifiables nparams t =
-  let nargs = 2 * nparams in
-  let args = Array.init nargs (fun i -> Constr.mkRel (nargs - i)) in
-  Constr.mkApp(t,args)
-
 let type_of_export nparams ty =
   let ty = apply_params nparams ty in
   Constr.mkProd(Anonymous,ty,Lazy.force SExpr.t)
 
 (** Build a substitution for parameters of [mib] and adds a quantification over
-Reifiable.t instances for products in Type, optionally projected using
-[oproj] *)
-let gen_params oproj mib =
+Reifiable.t instances for products in a sort *)
+let gen_params mib =
   let ctxt = mib.mind_params_ctxt in
   let nparamsrec = mib.mind_nparams_rec in
   let ctxt = fst (extract_params nparamsrec ctxt) in
@@ -134,24 +127,18 @@ let gen_params oproj mib =
     Context.fold_rel_context_reverse (fun (n,substparams,l) (_,copt,ty) ->
       match copt with
       | None ->
-	 (* TODO: do this only when ty is Type *)
-	 let l = (Anonymous, Constr.mkApp(Lazy.force Reifiable.t,[|Constr.mkRel 1|])) :: l in
+	 let (l, n) =
+	   if isSort ty then
+	     ((Anonymous, Constr.mkApp(Lazy.force Reifiable.t,[|Constr.mkRel 1|])) :: l, n + 2)
+	   else (l, n + 1)
+	 in
 	 let l = (Anonymous, ty) :: l in
-	 let n = n + 2 in
 	 let substparams = Constr.mkRel n :: substparams in
 	 (n,substparams,l)
       | _ -> assert false
     ) ~init:(0,[],[]) ctxt 
   in
   List.rev subst, List.rev l
-
-(** [export_params mib] builds a substitution for parameters of [mib] and a list
-     of types of export functions. *)
-let export_params mib =
-  gen_params (Some (Lazy.force Reifiable.export)) mib
-
-let import_params mib =
-  gen_params (Some (Lazy.force Reifiable.import)) mib
 
 (* For an inductive ind with n mutual bodies *)
 (* fix ind_export_1 := [export_inductive 1]
@@ -167,7 +154,7 @@ let export_mind env ((mind,i as ind),u as pind) =
   let recindexes = Array.make n 0 in
   let funnames = Array.make n Anonymous in
   let nparams = mib.mind_nparams_rec in
-  let substparams, lams = export_params mib in
+  let substparams, lams = gen_params mib in
   let env = Termops.push_rels_assum lams env in
   let typs = Array.init n (fun i -> type_of_export substparams (Constr.mkInd (mind,i))) in
   let typs_assum = List.map (fun t -> (Anonymous,t)) (Array.to_list typs) in
@@ -185,7 +172,7 @@ let export_mind env ((mind,i as ind),u as pind) =
 let import_mind env (mind,i as ind) =
   let (mib,_) = lookup_mind_specif env ind in
   let nparams = mib.mind_nparams_rec in
-  let substparams, lams = import_params mib in
+  let substparams, lams = gen_params mib in
   let ty = apply_params substparams (Constr.mkInd ind) in
   (* Lift corresponding to the argument (i.e. the s-expr) *)
   let ty = Vars.lift 1 ty in
