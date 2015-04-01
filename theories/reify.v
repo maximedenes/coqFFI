@@ -31,6 +31,8 @@ Existing Instance Z_reify.
 Reification for nat.
 Existing Instance nat_reify.
 
+Set Printing All.
+
 Reification for list.
 Existing Instance list_reify.
 

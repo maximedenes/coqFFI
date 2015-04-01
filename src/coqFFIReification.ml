@@ -22,11 +22,8 @@ open CoqFFIState
 let one = lazy (Constr.mkApp(Lazy.force SExpr.i,[|Lazy.force Positive.xH|]))
 
 let find_reifiable_instance env evd ty =
-  (* let ctxt = Environ.empty_named_context_val in
-  let (evd,ev) = Evarutil.new_pure_evar ctxt evd ty in *)
   let tc = Constr.mkApp(Lazy.force Reifiable.t, [|ty|]) in
-  let (evd,evar) = Evarutil.new_evar env evd (* ~principal:true *) tc in
-  (*  let tc = Termops.it_mkProd tc prods in *)
+  let (evd,evar) = Evarutil.new_evar env evd tc in
   let evd = Typeclasses.resolve_typeclasses env evd in
   Evarutil.nf_evar evd (Evd.existential_value evd (destEvar evar))
 
@@ -48,91 +45,50 @@ let export_list l =
 Ck : forall params, T1, ... Tn in the following [env] :
 params, T1, ... T(i-1) |- Ti (= [ty])
 *)
-let export_arg env nargs mind ninds nparams substparams ty i =
+let export_arg env nargs mind ninds nparams ty i =
   let evd = Evd.from_env env in
   let (t, params) = decompose_app (Reduction.whd_betadeltaiota env ty) in
-  let arg = Constr.mkRel (nargs+1-i) in
+  let arg = Constr.mkRel (nargs-i) in
   match kind_of_term t with
-  | Ind ((mind',k),u) ->
-    if MutInd.equal mind mind' then
-      Constr.mkApp(Constr.mkRel (nargs+nparams+1+ninds-k), [|arg|])
-    else
-      (Printf.printf "mind=%s mind'=%s\n" (MutInd.to_string mind) (MutInd.to_string mind');
-       let rels = Termops.free_rels ty in
-       (* We rely here on the order underlying Int.Set.t *)
-       let rels = Int.Set.elements rels in
-       let nrels = List.length rels in
-(*       let (evd,ty) =
-	 List.fold_left (fun (evd,subst) r -> 
-			 let (_,_,t) = Environ.lookup_rel r env in
-			 let (evd,c) = Evarutil.new_evar (Global.env ()) evd t in
-			 (evd, Vars.substnl [c] (r-1) ty)) (evd,ty) rels
-       in*)
-       (*
-       let ty = Vars.substl (List.rev (Termops.rel_list 0 nrels)) ty in
-	*)
-(*       let ty =
-	 List.fold_left (fun ty r -> 
-			 let (_,_,t) = Environ.lookup_rel r env in
-			 Constr.mkProd(Anonymous,t,ty)) ty rels
-       in *)
-(*
-       let prods =
-	 List.map (fun r -> 
-		   let (_,_,ty) = Environ.lookup_rel r env in
-		   (Anonymous,ty)) rels
-       in
- *)
-       (*       let ty = Vars.substl (List.rev subst) ty in *)
-       let inst = find_reifiable_instance env evd ty in
-       let ty = Vars.lift (nargs+1-i) ty in
-       let inst = Vars.lift (nargs+1-i) inst in
-       Constr.mkApp(Lazy.force Reifiable.export, [|ty;inst;arg|]))
-  | Rel k ->
-     (* The current context is forall params, forall arg0 ... forall arg(i-1) |- *)
-     (* So we found parameter number (nparams - k + i - 1) *)
-     let t = Vars.lift (nargs+nparams+ninds+1) substparams.(nparams - k + i - 1) in
-     Constr.mkApp(t, Array.of_list (params @ [arg]))
+  | Ind ((mind',k),u) when MutInd.equal mind mind' ->
+      Constr.mkApp(Constr.mkRel (nargs+1+ninds-k), [|arg|])
   | _ ->
      let inst = find_reifiable_instance env evd ty in
-     let ty = Vars.lift (nargs+1-i) ty in
-     let inst = Vars.lift (nargs+1-i) inst in
      Constr.mkApp(Lazy.force Reifiable.export, [|ty;inst;arg|])
 
-let rel_of_param nparams n =
-  Constr.mkRel (2 * (nparams - n))
-
-let rel_of_reifiable nparams n =
-  Constr.mkRel (2 * (nparams - n) - 1)
+(** Split [ctxt] in two parts: one for [nparams] parameters and one for the
+remainder *)
+let extract_params nparams ctxt =
+  (* [smash_rel_context] expands let-ins which might be costly in some cases *)
+  let ctxt = Termops.smash_rel_context ctxt in
+  let (rem,params) = List.chop (List.length ctxt - nparams) ctxt in
+  (params, rem)
 
 (** Return B tag [export_arg arg1] ... [export_arg arg2] *)
 let export_constructor env mind ninds nparams substparams i ty =
   let ctxt,t = decompose_prod_assum ty in
-  (* [smash_rel_context] expands let-ins which might be costly in some cases *)
-  let ctxt = Termops.smash_rel_context ctxt in
-  let (ctxt,params) = List.chop (List.length ctxt - nparams) ctxt in
-  let env = Environ.push_rel_context params env in
+  let ctxt = snd (extract_params nparams ctxt) in
+  let ctxt = Termops.substl_rel_context substparams ctxt in
+  (* TODO: what about let-ins? *)
   let nargs = Context.rel_context_nhyps ctxt in
-  let (env,args,_) = Context.fold_rel_context (fun (_,odecl,ty as decl) (env,args,i) ->
-    match odecl with
-    | None ->
-       let arg = export_arg env nargs mind ninds nparams substparams ty i in
-       let env = Environ.push_rel decl env in
-       (env, arg :: args, i+1)
-    | Some _ -> assert false)
-    ctxt ~init:(env,[],1)
+  let env = Environ.push_rel_context ctxt env in
+  (* TODO: check that we have no dependent types here *)
+  (* The environment in which we interpret the type of each argument has nargs
+more binders than the original one, but doesn't have the types of previous
+arguments in scope. Hence, the type number j must be lifted by nargs-j *)
+  let args = List.mapi (fun j (_,odecl,ty) ->
+    export_arg env nargs mind ninds nparams (Vars.lift (nargs-j) ty) j
+    ) (List.rev ctxt)
   in
   let tag = Constr.mkApp(Lazy.force SExpr.i, [|export_tag (i+1)|]) in
-  let br = Constr.mkApp(Lazy.force SExpr.b, [|tag; export_list (List.rev args)|]) in
+  let br = Constr.mkApp(Lazy.force SExpr.b, [|tag; export_list args|]) in
   let t = Termops.it_mkLambda_or_LetIn br ctxt in
-  let relparams = List.init nparams (fun i -> Vars.lift (ninds+1) (rel_of_param nparams i)) in
-  let t = Vars.substl (List.rev relparams) t in
   Pp.ppnl (Termops.print_constr t);
   t
 
-let type_of_export_arg ninds nparams ty =
-  let params = Array.init nparams (fun i -> Vars.lift ninds (rel_of_param nparams i)) in
-  Constr.mkApp(ty,params)
+let apply_params substparams t =
+  let params = List.rev substparams in
+  Constr.mkApp(t, Array.of_list params)
 
 (** Generate the export function for the given inductive *)
 (*
@@ -146,17 +102,17 @@ let type_of_export_arg ninds nparams ty =
 let export_inductive env ((mind,i as ind),u as pind) ninds nparams substparams oib =
   let ci = make_case_info env ind RegularStyle in
   let typs = arities_of_constructors env pind in
-  let ty = type_of_export_arg ninds nparams (Constr.mkInd ind) in
+  (** We lift by 1 because the export function introduces a lambda. *)
+  let ty = apply_params substparams (Constr.mkInd ind) in
+  let env = Environ.push_rel (Anonymous,None,ty) env in
+  let substparams = List.map (Vars.lift 1) substparams in
   let p = Constr.mkLambda(Anonymous, Vars.lift 1 ty, Lazy.force SExpr.t) in
   let c = Constr.mkRel 1 in
   let ac = Array.mapi (export_constructor env mind ninds nparams substparams) typs in
   let case = Constr.mkCase(ci,p,c,ac) in
   Constr.mkLambda(Anonymous, ty, case)
 
-let apply_params nparams t =
-  let params = Array.init nparams (rel_of_param nparams) in
-  Constr.mkApp(t,params)
-
+(* TODO: remove *)
 let apply_reifiables nparams t =
   let nargs = 2 * nparams in
   let args = Array.init nargs (fun i -> Constr.mkRel (nargs - i)) in
@@ -166,29 +122,28 @@ let type_of_export nparams ty =
   let ty = apply_params nparams ty in
   Constr.mkProd(Anonymous,ty,Lazy.force SExpr.t)
 
+(** Build a substitution for parameters of [mib] and adds a quantification over
+Reifiable.t instances for products in Type, optionally projected using
+[oproj] *)
 let gen_params oproj mib =
   let ctxt = mib.mind_params_ctxt in
   let nparamsrec = mib.mind_nparams_rec in
+  let ctxt = fst (extract_params nparamsrec ctxt) in
   let (_,subst,l) =
-    Context.fold_rel_context (fun (_,copt,ty) (n,substparams,l) ->
+    (* From newer to older declarations *)
+    Context.fold_rel_context_reverse (fun (n,substparams,l) (_,copt,ty) ->
       match copt with
       | None ->
-	 if n >= nparamsrec then (n,substparams,l)
-	 else
-	   let reif = rel_of_reifiable nparamsrec n in
-	   let tyr = rel_of_param nparamsrec n in
-	   let t = match oproj with
-	     | Some f -> Constr.mkApp(f, [|tyr;reif|])
-	     | None -> reif
-	   in
-	   let substparams = t :: substparams in
-	   let l = (Anonymous, Constr.mkApp(Lazy.force Reifiable.t,[|Constr.mkRel 1|])) :: l in
-	   let l = (Anonymous, ty) :: l in
-	   (n+1,substparams,l)
-      | Some _ -> assert false
-    ) ctxt ~init:(0,[],[])
+	 (* TODO: do this only when ty is Type *)
+	 let l = (Anonymous, Constr.mkApp(Lazy.force Reifiable.t,[|Constr.mkRel 1|])) :: l in
+	 let l = (Anonymous, ty) :: l in
+	 let n = n + 2 in
+	 let substparams = Constr.mkRel n :: substparams in
+	 (n,substparams,l)
+      | _ -> assert false
+    ) ~init:(0,[],[]) ctxt 
   in
-  (Array.of_list (List.rev subst),List.rev l)
+  List.rev subst, List.rev l
 
 (** [export_params mib] builds a substitution for parameters of [mib] and a list
      of types of export functions. *)
@@ -212,8 +167,13 @@ let export_mind env ((mind,i as ind),u as pind) =
   let recindexes = Array.make n 0 in
   let funnames = Array.make n Anonymous in
   let nparams = mib.mind_nparams_rec in
-  let typs = Array.init n (fun i -> type_of_export nparams (Constr.mkInd (mind,i))) in
   let substparams, lams = export_params mib in
+  let env = Termops.push_rels_assum lams env in
+  let typs = Array.init n (fun i -> type_of_export substparams (Constr.mkInd (mind,i))) in
+  let typs_assum = List.map (fun t -> (Anonymous,t)) (Array.to_list typs) in
+  (* TODO: package env and substparams? *)
+  let env = Termops.push_rels_assum typs_assum env in
+  let substparams = List.map (Vars.lift n) substparams in
   let bodies =
     Array.mapi (fun i -> export_inductive env ((mind,i),u) n nparams substparams) mib.mind_packets
   in
@@ -226,7 +186,7 @@ let import_mind env (mind,i as ind) =
   let (mib,_) = lookup_mind_specif env ind in
   let nparams = mib.mind_nparams_rec in
   let substparams, lams = import_params mib in
-  let ty = apply_params nparams (Constr.mkInd ind) in
+  let ty = apply_params substparams (Constr.mkInd ind) in
   (* Lift corresponding to the argument (i.e. the s-expr) *)
   let ty = Vars.lift 1 ty in
   let none = Constr.mkApp(Lazy.force Init.none, [|ty|]) in

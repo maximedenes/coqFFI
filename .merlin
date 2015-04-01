@@ -1,0 +1,5 @@
+PRJ CoqFFI
+S src
+B src
+FLG -rectypes
+PKG coq

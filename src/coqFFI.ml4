@@ -137,9 +137,9 @@ let reification_gen r =
   let export = apply_reifiables nparams (Constr.mkConst export) in
   let import = apply_reifiables nparams (Constr.mkConst import) in
   let new_reifiable = Lazy.force Reifiable.new_reifiable in
-  let ty = apply_params nparams (Constr.mkInd ind) in
-  let reify = Constr.mkApp(new_reifiable, [|ty;export;import|]) in
   let subst,lams = gen_params None mib in
+  let ty = apply_params subst (Constr.mkInd ind) in
+  let reify = Constr.mkApp(new_reifiable, [|ty;export;import|]) in
   let reify = Termops.it_mkLambda reify lams in
   Pp.ppnl (Termops.print_constr reify);
   ignore (define name_reify reify);
