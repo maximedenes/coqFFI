@@ -13,6 +13,7 @@ open Constrintern
 open Nameops
 open Nametab
 open Inductiveops
+open Globnames
 
 open CoqFFIConstants
 open CoqFFIState
@@ -80,7 +81,7 @@ let bindForeign f a =
   Proofview.Goal.nf_enter begin fun gl ->
     let env = Proofview.Goal.env gl in
     let sigma = Proofview.Goal.sigma gl in
-    let t1 = time "apply import" (fun () -> apply (Lazy.force Reifiable.import)) in
+    let t1 = time "apply import" (fun () -> apply (Lazy.force Decodable.decode)) in
     let f = get_fun f in
     let a = time "normalize" (fun () -> Redexpr.cbv_vm env sigma a) in
     let a = time "convert sexpr" (fun () -> sexpr_of_coq_sexpr a) in
@@ -95,18 +96,25 @@ let bindForeign f a =
 (* TODO: register the type of the function represented by [f] and check *)
 (* that the one of [c] is compatible. *)
 let runForeign f c =
-  let export = Lazy.force Reifiable.export_ref in
-  let export = path_of_global export in
-  let export = Libnames.Qualid(Loc.ghost,Libnames.qualid_of_path export) in
-  let export = CRef(export, None) in
-  let c = CApp(Loc.ghost, (None,export), [(c,None)]) in
+  let encode = Lazy.force Encodable.encode_ref in
+  let encode = CRef(global_ref_of_ref encode, None) in
+  let c = CApp(Loc.ghost, (None,encode), [(c,None)]) in
   let env = Global.env () in
   let evd = Evd.from_env env in
   let (c,ctx) = interp_constr env evd c in
   let c = Redexpr.cbv_vm env evd c in
+  Pp.ppnl (Termops.print_constr c);
   let c = sexpr_of_coq_sexpr c in
   let f = get_fun f in
   let _ = f c in ()
+
+let encodable_class =
+  lazy (let Some (_, ((encodable,_), _)) = Typeclasses.class_of_constr (Lazy.force Encodable.t) in
+  encodable)
+
+let decodable_class =
+  lazy (let Some (_, ((decodable,_), _)) = Typeclasses.class_of_constr (Lazy.force Decodable.t) in
+  decodable)
 
 let reification_gen r =
   let env = Global.env () in
@@ -125,27 +133,16 @@ let reification_gen r =
   let export_term = export_mind env pind in
   Pp.ppnl (Termops.print_constr export_term);
   let export = define name_export export_term in
+  let export = global_ref_of_ref (ConstRef export) in
+  Classes.existing_instance true export None;
   Pp.msg_info (Pp.str (Printf.sprintf "Defined export function for %s\n"
                          (MutInd.to_string (fst ind))));
   let import_term = import_mind env ind in
   Pp.ppnl (Termops.print_constr import_term);
   let import = define name_import import_term in
+  let import = global_ref_of_ref (ConstRef import) in
+  Classes.existing_instance true import None;
   Pp.msg_info (Pp.str (Printf.sprintf "Defined import function for %s\n"
-                         (MutInd.to_string (fst ind))));
-  let env = Global.env () in
-  let evd = Evd.from_env env in
-  let subst,lams = gen_params mib in
-  let env = Termops.push_rels_assum lams env in
-  let args = Termops.rel_vect 0 (List.length lams) in
-  let export = Constr.mkApp(Constr.mkConst export, args) in
-  let import = Constr.mkApp(Constr.mkConst import, args) in
-  let new_reifiable = Lazy.force Reifiable.new_reifiable in
-  let ty = apply_params subst (Constr.mkInd ind) in
-  let reify = Constr.mkApp(new_reifiable, [|ty;export;import|]) in
-  let reify = Termops.it_mkLambda reify lams in
-  Pp.ppnl (Termops.print_constr reify);
-  ignore (define name_reify reify);
-  Pp.msg_info (Pp.str (Printf.sprintf "Defined reification function for %s\n"
                          (MutInd.to_string (fst ind))))
 
 let _ = register_fun "id" (fun x -> x)

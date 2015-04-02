@@ -11,7 +11,7 @@ CMO_TARGETS = $(CMX_TARGETS:.cmx=.cmo)
 COQEPLUGIN = "src/coqFFIPlugin.cma"
 COQEPLUGINOPT = "src/coqFFIPlugin.cmxs"
 
-ZDEBUG = -bin-annot
+ZDEBUG = "-g -bin-annot"
 
 src/coqFFIConstants.ml
 src/coqFFIConstants.mli

@@ -63,6 +63,7 @@ COQDOCLIBS?=\
 #                        #
 ##########################
 
+ZDEBUG=-g -bin-annot
 COQEPLUGINOPT=src/coqFFIPlugin.cmxs
 COQEPLUGIN=src/coqFFIPlugin.cma
 CMO_TARGETS=$(CMX_TARGETS:.cmx=.cmo)

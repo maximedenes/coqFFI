@@ -21,11 +21,14 @@ open CoqFFIState
 
 let one = lazy (Constr.mkApp(Lazy.force SExpr.i,[|Lazy.force Positive.xH|]))
 
-let find_reifiable_instance env evd ty =
-  let tc = Constr.mkApp(Lazy.force Reifiable.t, [|ty|]) in
+let find_instance env evd tclass ty =
+  let tc = Constr.mkApp(tclass, [|ty|]) in
   let (evd,evar) = Evarutil.new_evar env evd tc in
   let evd = Typeclasses.resolve_typeclasses env evd in
   Evarutil.nf_evar evd (Evd.existential_value evd (destEvar evar))
+
+let find_encodable_instance env evd ty =
+  find_instance env evd (Lazy.force Encodable.t) ty
 
 let export_tag i = mk_positive i
 
@@ -46,8 +49,8 @@ let export_arg env nargs mind ninds nparams ty i =
   | Ind ((mind',k),u) when MutInd.equal mind mind' ->
       Constr.mkApp(Constr.mkRel (nargs+1+ninds-k), [|arg|])
   | _ ->
-     let inst = find_reifiable_instance env evd ty in
-     Constr.mkApp(Lazy.force Reifiable.export, [|ty;inst;arg|])
+     let inst = find_encodable_instance env evd ty in
+     Constr.mkApp(inst,[|arg|])
 
 (** Split [ctxt] in two parts: one for [nparams] parameters and one for the
 remainder *)
@@ -105,13 +108,18 @@ let export_inductive env ((mind,i as ind),u as pind) ninds nparams substparams o
   let case = Constr.mkCase(ci,p,c,ac) in
   Constr.mkLambda(Anonymous, ty, case)
 
-let type_of_export nparams ty =
-  let ty = apply_params nparams ty in
-  Constr.mkProd(Anonymous,ty,Lazy.force SExpr.t)
+let type_of_export ty =
+  Constr.mkApp(Lazy.force Encodable.t, [|ty|])
+
+let type_of_export_fix ty =
+  Constr.mkProd(Anonymous,ty, Lazy.force SExpr.t)
+
+let type_of_import ty =
+  Constr.mkApp(Lazy.force Decodable.t, [|ty|])
 
 (** Build a substitution for parameters of [mib] and adds a quantification over
 Reifiable.t instances for products in a sort *)
-let gen_params mib =
+let gen_params mib tclass =
   let ctxt = mib.mind_params_ctxt in
   let nparamsrec = mib.mind_nparams_rec in
   let ctxt = fst (extract_params nparamsrec ctxt) in
@@ -122,7 +130,7 @@ let gen_params mib =
       | None ->
 	 let (l, n) =
 	   if isSort ty then
-	     ((Anonymous, Constr.mkApp(Lazy.force Reifiable.t,[|Constr.mkRel 1|])) :: l, n + 2)
+	     ((Anonymous, Constr.mkApp(tclass, [|Constr.mkRel 1|])) :: l, n + 2)
 	   else (l, n + 1)
 	 in
 	 let l = (Anonymous, ty) :: l in
@@ -147,9 +155,14 @@ let export_mind env ((mind,i as ind),u as pind) =
   let recindexes = Array.make n 0 in
   let funnames = Array.make n Anonymous in
   let nparams = mib.mind_nparams_rec in
-  let substparams, lams = gen_params mib in
+  let substparams, lams = gen_params mib (Lazy.force Encodable.t) in
   let env = Termops.push_rels_assum lams env in
-  let typs = Array.init n (fun i -> type_of_export substparams (Constr.mkInd (mind,i))) in
+  let export_ty = apply_params substparams (Constr.mkInd (mind,i)) in
+  let typs =
+    Array.init n (fun j ->
+		  let ty = apply_params substparams (Constr.mkInd (mind,j)) in
+		  type_of_export_fix ty)
+  in
   let typs_assum = List.map (fun t -> (Anonymous,t)) (Array.to_list typs) in
   (* TODO: package env and substparams? *)
   let env = Termops.push_rels_assum typs_assum env in
@@ -158,6 +171,7 @@ let export_mind env ((mind,i as ind),u as pind) =
     Array.mapi (fun i -> export_inductive env ((mind,i),u) n nparams substparams) mib.mind_packets
   in
   let t = Constr.mkFix((recindexes,i),(funnames,typs,bodies)) in
+  let t = Constr.mkCast(t, DEFAULTcast, type_of_export export_ty) in
   Termops.it_mkLambda t lams
 
 
@@ -165,10 +179,11 @@ let export_mind env ((mind,i as ind),u as pind) =
 let import_mind env (mind,i as ind) =
   let (mib,_) = lookup_mind_specif env ind in
   let nparams = mib.mind_nparams_rec in
-  let substparams, lams = gen_params mib in
-  let ty = apply_params substparams (Constr.mkInd ind) in
+  let substparams, lams = gen_params mib (Lazy.force Decodable.t) in
+  let import_ty = apply_params substparams (Constr.mkInd ind) in
   (* Lift corresponding to the argument (i.e. the s-expr) *)
-  let ty = Vars.lift 1 ty in
+  let ty = Vars.lift 1 import_ty in
   let none = Constr.mkApp(Lazy.force Init.none, [|ty|]) in
   let t = Constr.mkLambda(Anonymous, Lazy.force SExpr.t, none) in
+  let t = Constr.mkCast(t, DEFAULTcast, type_of_import import_ty) in
   Termops.it_mkLambda t lams

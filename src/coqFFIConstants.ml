@@ -5,6 +5,10 @@ let message = "CoqFFI"
 let lookup  = Coqlib.gen_constant_in_modules message
 let lookup_ref = Coqlib.gen_reference_in_modules message
 
+let global_ref_of_ref r =
+  let path = Nametab.path_of_global r in
+  Libnames.Qualid(Loc.ghost, Libnames.qualid_of_path path)
+
 module SExpr = struct
   let constant = lookup [["CoqFFI"; "reifiable"; "SExpr"]]
   
@@ -14,18 +18,25 @@ module SExpr = struct
   let b          = lazy (constant "B")
 end
 
-module Reifiable = struct
-  let path = [["CoqFFI"; "reifiable"; "Reifiable"]]
+module Encodable = struct
+  let path = [["CoqFFI"; "reifiable"; "Encodable"]]
   let constant = lookup path
   let reference = lookup_ref path
   
   let t          = lazy (constant "t")
   
-  let import     = lazy (constant "Import")
-  let export     = lazy (constant "Export")
-  let export_ref = lazy (reference "Export")
+  let encode = lazy (constant "encode")
+  let encode_ref = lazy (reference "encode")
+end
 
-  let new_reifiable = lazy (constant "New")
+module Decodable = struct
+  let path = [["CoqFFI"; "reifiable"; "Decodable"]]
+  let constant = lookup path
+  let reference = lookup_ref path
+  
+  let t          = lazy (constant "t")
+  
+  let decode = lazy (constant "decode")
 end
 
 module CoqFFI = struct
@@ -124,7 +135,7 @@ let rec sexpr_of_coq_sexpr t =
   | App(f,args) ->
      begin match Constr.kind f with
      | Construct ((ind,1),_) ->
-	check_positive ind;
+	check_sexpr_ind ind;
 	if Int.equal (Array.length args) 1 then
           I(int_of_positive args.(0))
 	else raise NotAnSExpr

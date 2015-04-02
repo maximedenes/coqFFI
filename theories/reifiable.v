@@ -17,22 +17,18 @@ Module SExpr.
   | B : t -> t -> t.
 End SExpr.
 
-(** A reifiable type is a type equipped with reification functions. *)
-Module Reifiable.
-  Import SExpr.
-  
-  Class t (T: Type): Type := New {
-    Export: T -> SExpr.t;
-    Import: SExpr.t -> option T}.
-  
-  (** We expect to get the original value from a reified one. *)
-  Definition IsSound (T: Type) (r: t T): Prop :=
-    forall (v: T), Import (Export v) = Some v.
-  
-  (** If we can reify [A] to [B] and reify [B], then we can reify [A]. *)
-  Definition Morphism (A B: Type) (r: t B)
-    (export: A -> B) (import: B -> A): t A := New
-    (fun a => Export (export a))
-    (fun s => option_map import (Import s)).
+(** We provide the codec in an unbundled way, because it is simpler for building
+terms using type class inference (e.g. nested inductive types), interacts better
+with the guard condition and gives better performance (no projections). *)
 
-End Reifiable.
+Module Encodable.
+
+  Class t (T : Type) := encode : T -> SExpr.t.
+
+End Encodable.
+
+Module Decodable.
+
+  Class t (T : Type) := decode : SExpr.t -> option T.
+
+End Decodable.
