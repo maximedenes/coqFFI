@@ -130,20 +130,23 @@ let reification_gen r =
   let name_export = add_suffix base "_export" in
   let name_import = add_suffix base "_import" in
   let name_reify = add_suffix base "_reify" in
-  let export_term = export_mind env pind in
+  let export_term = encode_mind env pind in
   Pp.ppnl (Termops.print_constr export_term);
   let export = define name_export export_term in
   let export = global_ref_of_ref (ConstRef export) in
   Classes.existing_instance true export None;
   Pp.msg_info (Pp.str (Printf.sprintf "Defined export function for %s\n"
                          (MutInd.to_string (fst ind))));
-  let import_term = import_mind env ind in
+  let import_term = decode_mind env pind in
   Pp.ppnl (Termops.print_constr import_term);
   let import = define name_import import_term in
   let import = global_ref_of_ref (ConstRef import) in
   Classes.existing_instance true import None;
   Pp.msg_info (Pp.str (Printf.sprintf "Defined import function for %s\n"
                          (MutInd.to_string (fst ind))))
+
+(* For debug printers *)
+let _ = Detyping.set_detype_anonymous (fun _ _ -> raise Not_found)
 
 let _ = register_fun "id" (fun x -> x)
 

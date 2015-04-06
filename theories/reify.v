@@ -8,6 +8,7 @@ Require Import List.
 From CoqFFI Require Import reifiable coqFFI.
 
 Set Implicit Arguments.
+Set Printing All.
 
 Import ListNotations.
 

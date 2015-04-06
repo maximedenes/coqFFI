@@ -32,3 +32,6 @@ Module Decodable.
   Class t (T : Type) := decode : SExpr.t -> option T.
 
 End Decodable.
+
+Global Hint Extern 1 (Encodable.t _) => assumption : typeclass_instances.
+Global Hint Extern 1 (Decodable.t _) => assumption : typeclass_instances.
