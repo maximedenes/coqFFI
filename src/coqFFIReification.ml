@@ -131,20 +131,13 @@ let mk_case_option env c ty ret_ty case_Some case_None =
   let case_Some = Constr.mkLambda(Anonymous, ty, case_Some) in
   Constr.mkCase(ci,p,c,[|case_Some;case_None|])
 
-let rec import_args env sargs substparams ret_ty c cargs ctxt =
+let rec import_args env sargs ret_ty c cargs ctxt =
   match ctxt with
-  | [] -> 
-     let c = Constr.mkApp(apply_params substparams c, Array.of_list (List.rev cargs)) in
+  | [] ->
+     let c = Constr.mkApp(c, Array.of_list (List.rev cargs)) in
      Constr.mkApp(Lazy.force Init.some, [|ret_ty;c|])
   | (_, None, ty) :: ctxt' ->
      let evd = Evd.from_env env in
-     (*     let (t, params) = decompose_app (Reduction.whd_betadeltaiota env ty) in *)
-     (*  match kind_of_term t with
-  | Ind ((mind',k),u) when MutInd.equal mind mind' ->
-     (* TODO: handle with type classes, like other cases *)
-     (* May require to remove the cast and type fixpoints with the type class *)
-      Constr.mkApp(Constr.mkRel (nargs+1+ninds-k), [|arg|])
-  | _ -> *)
      (* sargs encodes the list of arguments, let's pattern match on it *)
      let match_sargs match_arg =
        let none = Constr.mkApp(Lazy.force Init.none, [|ret_ty|]) in
@@ -154,27 +147,30 @@ let rec import_args env sargs substparams ret_ty c cargs ctxt =
      let env = Environ.push_rel (Anonymous, None, Lazy.force SExpr.t) env in
      let env = Environ.push_rel (Anonymous, None, Lazy.force SExpr.t) env in
      (* now we need to decode the argument *)
-     let ty = Vars.lift 2 ty in
+     (* let ty = Vars.lift 2 ty in *)
      let ret_ty = Vars.lift 2 ret_ty in
-     let cargs = List.map (Vars.lift 2) cargs in
      let inst = find_decodable_instance env evd ty in
      let arg = Constr.mkApp(inst,[|Constr.mkRel 2|]) in
      let case_None = Constr.mkApp(Lazy.force Init.none, [|ret_ty|]) in
      let carg = Constr.mkRel 1 in
      let sargs = Constr.mkRel 2 in
-     let oty = Constr.mkApp(Lazy.force Init.option, [|ty|]) in
-     let env' = Environ.push_rel (Anonymous, None, oty) env in
-     let substparams = List.map (Vars.lift 3) substparams in
-     (* We should lift by 2 but the each item in ctxt already has in scope its predecessors *)
+     let env' = Environ.push_rel (Anonymous, None, ty) env in
+     let c = Vars.lift 3 c in
+     let cargs = List.map (Vars.lift 3) cargs in
+     (* We should lift by 3 but each item in ctxt already has in scope its predecessors *)
+  let ctxt' = List.rev ctxt' in
      let ctxt' = Termops.lift_rel_context 2 ctxt' in
+  let ctxt' = List.rev ctxt' in
      let ret_ty' = Vars.lift 1 ret_ty in
-     let cargs = List.map (Vars.lift 1) cargs in
-     let case_Some = import_args env' sargs substparams ret_ty' c (carg :: cargs) ctxt' in
+     let case_Some = import_args env' sargs ret_ty' c (carg :: cargs) ctxt' in
      match_sargs (mk_case_option env arg ty ret_ty case_Some case_None)
   | _ -> assert false
 
-let import_args env sarg substparams ret_ty c ctxt =
-  import_args env sarg substparams ret_ty c [] ctxt
+let import_args env sarg ret_ty c ctxt =
+  let ctxt = List.rev ctxt in
+  let ctxt = Termops.lift_rel_context 2 ctxt in
+  let ctxt = List.rev ctxt in
+  import_args env sarg ret_ty c [] ctxt
 
 let import_constructor env sargs pind ninds nparams substparams i ty =
   let constr_ty = (arities_of_constructors env pind).(i) in
@@ -188,7 +184,8 @@ let import_constructor env sargs pind ninds nparams substparams i ty =
   (*  List.iter (fun c -> Pp.ppnl (Termops.print_constr c)) substparams; *)
   (* TODO: what about let-ins? *)
   let c = Constr.mkConstruct (fst pind,(i+1)) in
-  import_args env sargs substparams ty c ctxt
+  let c = apply_params substparams c in
+  import_args env sargs ty c ctxt
 
 let rec import_tag env c ty sargs max_tag n current_tag ind ninds nparams substparams =
   let new_tag = (1 lsl n) + current_tag in
