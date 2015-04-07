@@ -103,7 +103,7 @@ let runForeign f c =
   let evd = Evd.from_env env in
   let (c,ctx) = interp_constr env evd c in
   let c = Redexpr.cbv_vm env evd c in
-  Pp.ppnl (Termops.print_constr c);
+  (* Pp.ppnl (Termops.print_constr c); *)
   let c = sexpr_of_coq_sexpr c in
   let f = get_fun f in
   let _ = f c in ()
