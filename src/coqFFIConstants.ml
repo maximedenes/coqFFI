@@ -113,22 +113,20 @@ let check_sexpr_ind ind =
   if not (Constr.equal (mkInd ind) (Lazy.force SExpr.t)) then
     raise NotAnSExpr
 
-let rec int_of_positive acc t =
+let rec int_of_positive t =
   match Constr.kind t with
   | Construct ((ind,3),_) -> (* xH *)
-     check_positive ind; acc
+     check_positive ind; 1
   | App(f,args) ->
      begin match Constr.kind f with
      | Construct ((ind,i),_) -> (* xI (i = 1) or xO (i = 2) *)
 	check_positive ind;
 	if Int.equal (Array.length args) 1 && 1 <= i && i <= 2 then
-	  int_of_positive (2 * acc + (i mod 2)) args.(0)
+	  2 * int_of_positive args.(0) + (i mod 2) 
 	else raise NotAnSExpr
      | _ -> raise NotAnSExpr
      end
   | _ -> raise NotAnSExpr
-
-let int_of_positive t = int_of_positive 1 t
 
 let rec sexpr_of_coq_sexpr t =
   match Constr.kind t with
