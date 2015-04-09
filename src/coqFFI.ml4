@@ -131,14 +131,14 @@ let reification_gen r =
   let name_import = add_suffix base "_import" in
   let name_reify = add_suffix base "_reify" in
   let export_term = encode_mind env pind in
-  Pp.ppnl (Termops.print_constr export_term);
+  (* Pp.ppnl (Termops.print_constr export_term); *)
   let export = define name_export export_term in
   let export = global_ref_of_ref (ConstRef export) in
   Classes.existing_instance true export None;
   Pp.msg_info (Pp.str (Printf.sprintf "Defined export function for %s\n"
                          (MutInd.to_string (fst ind))));
   let import_term = decode_mind env pind in
-  Pp.ppnl (Termops.print_constr import_term);
+  (* Pp.ppnl (Termops.print_constr import_term); *)
   let import = define name_import import_term in
   let import = global_ref_of_ref (ConstRef import) in
   Classes.existing_instance true import None;

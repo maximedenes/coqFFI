@@ -84,7 +84,7 @@ arguments in scope. Hence, the type number j must be lifted by nargs-j *)
   let tag = Constr.mkApp(Lazy.force SExpr.i, [|export_tag (i+1)|]) in
   let br = Constr.mkApp(Lazy.force SExpr.b, [|tag; export_list args|]) in
   let t = Termops.it_mkLambda_or_LetIn br ctxt in
-  Pp.ppnl (Termops.print_constr t);
+  (* Pp.ppnl (Termops.print_constr t); *)
   t
 
 let apply_params substparams t =
@@ -177,10 +177,10 @@ let import_constructor env sargs pind ninds nparams substparams i ty =
   let ctxt,t = decompose_prod_assum constr_ty in
   let ctxt = snd (extract_params nparams ctxt) in
   let ctxt = Termops.substl_rel_context substparams ctxt in
-  Pp.ppnl (Termops.print_env env);
-  print_endline "Constructor context:";
+  (* Pp.ppnl (Termops.print_env env);
+  print_endline "Constructor context:"; *)
   let ctxt = List.rev ctxt in
-  List.iter (fun c -> Pp.ppnl (Termops.pr_rel_decl env c)) ctxt;
+  (* List.iter (fun c -> Pp.ppnl (Termops.pr_rel_decl env c)) ctxt; *)
   (*  List.iter (fun c -> Pp.ppnl (Termops.print_constr c)) substparams; *)
   (* TODO: what about let-ins? *)
   let c = Constr.mkConstruct (fst pind,(i+1)) in
