@@ -70,6 +70,7 @@ CMO_TARGETS=$(CMX_TARGETS:.cmx=.cmo)
 CMX_TARGETS=\
   src/coqFFIConstants.cmx \
   src/coqFFIState.cmx \
+  src/coqFFIReification.cmx \
   src/coqFFI.cmx
 
 OPT?=
@@ -89,12 +90,12 @@ COQSRCLIBS?=-I "$(COQLIB)kernel" -I "$(COQLIB)lib" \
   -I "$(COQLIB)proofs" -I "$(COQLIB)tactics" -I "$(COQLIB)tools" \
   -I "$(COQLIB)toplevel" -I "$(COQLIB)stm" -I "$(COQLIB)grammar" \
   -I "$(COQLIB)config" \
+  -I "$(COQLIB)/plugins/Derive" \
   -I "$(COQLIB)/plugins/btauto" \
   -I "$(COQLIB)/plugins/cc" \
   -I "$(COQLIB)/plugins/decl_mode" \
   -I "$(COQLIB)/plugins/derive" \
   -I "$(COQLIB)/plugins/extraction" \
-  -I "$(COQLIB)/plugins/field" \
   -I "$(COQLIB)/plugins/firstorder" \
   -I "$(COQLIB)/plugins/fourier" \
   -I "$(COQLIB)/plugins/funind" \
@@ -102,11 +103,9 @@ COQSRCLIBS?=-I "$(COQLIB)kernel" -I "$(COQLIB)lib" \
   -I "$(COQLIB)/plugins/nsatz" \
   -I "$(COQLIB)/plugins/omega" \
   -I "$(COQLIB)/plugins/quote" \
-  -I "$(COQLIB)/plugins/ring" \
   -I "$(COQLIB)/plugins/romega" \
   -I "$(COQLIB)/plugins/rtauto" \
   -I "$(COQLIB)/plugins/setoid_ring" \
-  -I "$(COQLIB)/plugins/subtac" \
   -I "$(COQLIB)/plugins/syntax" \
   -I "$(COQLIB)/plugins/xml"
 ZFLAGS=$(OCAMLLIBS) $(COQSRCLIBS) -I $(CAMLP4LIB)
@@ -119,7 +118,7 @@ GRAMMARS?=grammar.cma
 ifeq ($(CAMLP4),camlp5)
 CAMLP4EXTEND=pa_extend.cmo q_MLast.cmo pa_macro.cmo unix.cma threads.cma
 else
-CAMLP4EXTEND=
+CAMLP4EXTEND=threads.cma
 endif
 PP?=-pp '$(CAMLP4O) -I $(CAMLLIB) -I $(CAMLLIB)threads/ $(COQSRCLIBS) compat5.cmo \
   $(CAMLP4EXTEND) $(GRAMMARS) $(CAMLP4OPTIONS) -impl'

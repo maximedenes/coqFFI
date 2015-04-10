@@ -4,6 +4,7 @@
 CMX_TARGETS = "\
   src/coqFFIConstants.cmx \
   src/coqFFIState.cmx \
+  src/coqFFIReification.cmx \
   src/coqFFI.cmx"
 
 CMO_TARGETS = $(CMX_TARGETS:.cmx=.cmo)
