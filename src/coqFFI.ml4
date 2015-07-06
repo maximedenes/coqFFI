@@ -67,7 +67,7 @@ let solve_remaining_apply_goals =
 let define name c =
   let env = Global.env () in
   let evd = Evd.from_env env in
-  let (evd,_) = Typing.e_type_of env evd c in
+  let (evd,_) = Typing.type_of env evd c in
   let uctxt = Evd.evar_context_universe_context (Evd.evar_universe_context evd) in
   declare_constant ~internal:KernelVerbose name
       (DefinitionEntry (definition_entry ~univs:uctxt c),
