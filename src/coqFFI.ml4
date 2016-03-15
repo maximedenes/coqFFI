@@ -69,7 +69,10 @@ let define name c =
   let evd = Evd.from_env env in
   let (evd,_) = Typing.type_of env evd c in
   let uctxt = Evd.evar_context_universe_context (Evd.evar_universe_context evd) in
-  declare_constant ~internal:KernelVerbose name
+  (* We use [UserIndividualRequest] to show errors at declaration time. for
+  debugging purposes. The final value of this flag should probably be
+  [InternalTacticRequest] *)
+  declare_constant ~internal:UserIndividualRequest name
       (DefinitionEntry (definition_entry ~univs:uctxt c),
        Decl_kinds.IsDefinition Decl_kinds.Definition)
 
@@ -123,7 +126,7 @@ let reification_gen r =
   let (mib,_) = lookup_mind_specif env ind in
   let nparams = mib.mind_nparams_rec in
   let pind, ctxt = Universes.fresh_inductive_instance env ind in
-  Global.push_context_set ctxt;
+  Global.push_context_set false ctxt;
   let env = Global.env () in
   let evd = Evd.from_env env in
   let base = basename_of_global (IndRef ind) in
